@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Deploy to VPS
         uses: OpsGuild/VPS-Deploy@v1
         with:
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Deploy to VPS
         uses: OpsGuild/VPS-Deploy@v1
         with:
@@ -348,8 +348,64 @@ This action is built using [Fabric](https://www.fabfile.org/) (Python library fo
 Check out the example workflows in the [`.github/workflows/`](.github/workflows/) directory:
 
 - **example-baremetal.yml** - Baremetal deployment example
-- **example-docker.yml** - Docker Compose deployment example  
+- **example-docker.yml** - Docker Compose deployment example
 - **example-k8s.yml** - Kubernetes deployment example
+
+## Development
+
+### Pre-commit Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to ensure code quality. Install it with:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install git hooks
+pre-commit install
+```
+
+The hooks will automatically run:
+- Code formatting (Black)
+- Import sorting (isort)
+- Linting (flake8)
+- Basic file checks (trailing whitespace, end-of-file, YAML validation, etc.)
+
+### Testing
+
+This action includes a comprehensive test suite. See [tests/README.md](tests/README.md) for details.
+
+### Quick Start
+
+Using Make (recommended):
+```bash
+make install-dev  # Install test dependencies
+make test         # Run all tests
+make test-unit    # Run only fast unit tests
+make test-coverage # Run with coverage report
+```
+
+Or manually:
+```bash
+# Install Poetry (if not already installed)
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Install dependencies
+poetry install
+
+# Run tests
+poetry run pytest
+
+# Run with coverage
+poetry run pytest --cov=deploy --cov-report=html
+```
+
+### Test Structure
+
+- **Unit Tests** (`tests/test_deploy.py`) - Fast tests using mocks, no external dependencies
+- **Integration Tests** (`tests/test_integration.py`) - Tests requiring real infrastructure (skipped by default)
+
+Tests run automatically in CI on every push and pull request. See [tests/README.md](tests/README.md) for detailed testing documentation.
 
 ## License
 
@@ -358,4 +414,3 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## Support
 
 For issues and feature requests, please open an issue on the [GitHub repository](https://github.com/OpsGuild/VPS-Deploy).
-

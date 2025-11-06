@@ -1,19 +1,53 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
 venv/
+env/
 ENV/
 .venv
-*.pem
-*.key
-.pytest_cache/
-.coverage
+
+# Testing
 htmlcov/
-dist/
-build/
-*.egg-info/
+.coverage
+.coverage.*
+.pytest_cache/
+.tox/
+.hypothesis/
 
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
+# OS
+.DS_Store
+Thumbs.db
+
+# Poetry
+poetry.lock
+
+# Temporary files
+*.tmp
+*.log

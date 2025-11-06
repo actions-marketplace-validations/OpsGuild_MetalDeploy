@@ -90,13 +90,19 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.x'
+    - name: Install Poetry
+      shell: bash
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
     - name: Install dependencies
       shell: bash
       run: |
-        pip install --upgrade pip
-        pip install -r ${{ github.action_path }}/requirements.txt
+        poetry install --no-dev
     - name: Run deployment
       shell: bash
+      run: |
+        poetry run python ${{ github.action_path }}/deploy.py
       env:
         GIT_URL: ${{ inputs.git_url }}
         GIT_AUTH_METHOD: ${{ inputs.git_auth_method }}
@@ -120,6 +126,3 @@ runs:
         K8S_MANIFEST_PATH: ${{ inputs.k8s_manifest_path }}
         K8S_NAMESPACE: ${{ inputs.k8s_namespace }}
         USE_SUDO: ${{ inputs.use_sudo }}
-      run: |
-        python ${{ github.action_path }}/deploy.py
-
