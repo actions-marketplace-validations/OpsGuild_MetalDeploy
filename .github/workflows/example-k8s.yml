@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Deploy to VPS (Kubernetes)
         uses: OpsGuild/VPS-Deploy@v1
         with:
@@ -25,4 +25,3 @@ jobs:
           k8s_manifest_path: k8s/
           k8s_namespace: production
           registry_type: ghcr
-

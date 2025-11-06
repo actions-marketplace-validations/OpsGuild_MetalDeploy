@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Deploy to VPS (Baremetal)
         uses: OpsGuild/VPS-Deploy@v1
         with:
@@ -24,4 +24,3 @@ jobs:
           environment: prod
           # Optional: specify custom command
           # baremetal_command: "npm install && npm run build && pm2 restart app"
-

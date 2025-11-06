@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Deploy to VPS (Docker)
         uses: OpsGuild/VPS-Deploy@v1
         with:
@@ -28,4 +28,3 @@ jobs:
           # registry_type: dockerhub
           # registry_username: ${{ secrets.DOCKERHUB_USERNAME }}
           # registry_password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
