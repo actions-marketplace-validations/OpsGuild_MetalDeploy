@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Deploy to VPS
-        uses: your-username/VPS-Deploy@v1
+        uses: OpsGuild/VPS-Deploy@v1
         with:
           git_url: ${{ secrets.GIT_URL }}
           git_auth_method: token
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Deploy to VPS
-        uses: your-username/VPS-Deploy@v1
+        uses: OpsGuild/VPS-Deploy@v1
         with:
           git_url: https://github.com/username/repo.git
           git_token: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +128,7 @@ baremetal_command: make deploy  # Optional: custom command to run
 **Example:**
 ```yaml
 - name: Deploy to VPS
-  uses: your-username/VPS-Deploy@v1
+  uses: OpsGuild/VPS-Deploy@v1
   with:
     deployment_type: baremetal
     baremetal_command: "npm install && npm run build && pm2 restart app"
@@ -148,7 +148,7 @@ profile: production  # Optional: use Docker Compose profiles
 **Example:**
 ```yaml
 - name: Deploy to VPS
-  uses: your-username/VPS-Deploy@v1
+  uses: OpsGuild/VPS-Deploy@v1
   with:
     deployment_type: docker
     profile: production
@@ -179,7 +179,7 @@ k8s_namespace: production  # Optional: defaults to 'default'
 **Example:**
 ```yaml
 - name: Deploy to VPS
-  uses: your-username/VPS-Deploy@v1
+  uses: OpsGuild/VPS-Deploy@v1
   with:
     deployment_type: k8s
     k8s_manifest_path: k8s/
@@ -343,11 +343,19 @@ This action supports the following server operating systems:
 
 This action is built using [Fabric](https://www.fabfile.org/) (Python library for SSH deployment and system administration) to handle remote server connections and command execution. Fabric provides secure SSH communication and robust command execution capabilities.
 
+## Example Workflows
+
+Check out the example workflows in the [`.github/workflows/`](.github/workflows/) directory:
+
+- **example-baremetal.yml** - Baremetal deployment example
+- **example-docker.yml** - Docker Compose deployment example  
+- **example-k8s.yml** - Kubernetes deployment example
+
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## Support
 
-For issues and feature requests, please open an issue on the [GitHub repository](https://github.com/your-username/VPS-Deploy).
+For issues and feature requests, please open an issue on the [GitHub repository](https://github.com/OpsGuild/VPS-Deploy).
 
