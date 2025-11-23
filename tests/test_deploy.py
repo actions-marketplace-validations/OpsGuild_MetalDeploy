@@ -133,8 +133,10 @@ class TestRunCommand:
         deploy.run_command(mock_connection, "test command")
         call_args = str(mock_connection.run.call_args)
         # Should try .bashrc, .bash_profile, and .profile
+        # bash -l automatically sources .bash_profile/.profile, and we explicitly source all
         assert ".bashrc" in call_args
-        assert ".bash_profile" in call_args or ".profile" in call_args
+        assert ".bash_profile" in call_args
+        assert ".profile" in call_args
 
     def test_run_command_with_complex_baremetal_command(self, mock_connection, monkeypatch):
         """Test that complex baremetal commands with && work correctly"""
@@ -238,9 +240,30 @@ class TestDeployFunctions:
             deploy.deploy_baremetal(mock_connection)
             mock_run.assert_called()
 
-    def test_deploy_baremetal_with_makefile(self, mock_connection, set_env_vars, monkeypatch):
-        # Mock Makefile exists
+    def test_deploy_baremetal_with_deploy_sh(self, mock_connection, set_env_vars, monkeypatch):
+        # Mock deploy.sh exists
         def mock_test(cmd, **kwargs):
+            if "deploy.sh" in cmd:
+                result = Mock()
+                result.stdout = "exists"
+                return result
+            return Mock(stdout="")
+
+        mock_connection.run.side_effect = mock_test
+        monkeypatch.setattr(deploy, "BAREMETAL_COMMAND", None)
+
+        with patch.object(deploy, "run_command") as mock_run:
+            deploy.deploy_baremetal(mock_connection)
+            # Should call deploy.sh
+            assert mock_run.called
+
+    def test_deploy_baremetal_with_makefile(self, mock_connection, set_env_vars, monkeypatch):
+        # Mock deploy.sh doesn't exist, but Makefile exists
+        def mock_test(cmd, **kwargs):
+            if "deploy.sh" in cmd:
+                result = Mock()
+                result.stdout = "not exists"
+                return result
             if "Makefile" in cmd:
                 result = Mock()
                 result.stdout = "exists"
@@ -253,7 +276,7 @@ class TestDeployFunctions:
 
         with patch.object(deploy, "run_command") as mock_run:
             deploy.deploy_baremetal(mock_connection)
-            # Should call make dev
+            # Should call make dev (since deploy.sh doesn't exist)
             assert mock_run.called
 
 
