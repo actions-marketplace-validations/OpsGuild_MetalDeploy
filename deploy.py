@@ -16,7 +16,13 @@ DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "docker").lower()
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 REMOTE_USER = os.getenv("REMOTE_USER", "root")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "127.0.0.1")
-REMOTE_DIR = os.getenv("REMOTE_DIR", f"/{REMOTE_USER}") or f"/home/{REMOTE_USER}"
+# Set default REMOTE_DIR based on user: /root for root, /home/{user} for others
+if os.getenv("REMOTE_DIR"):
+    REMOTE_DIR = os.getenv("REMOTE_DIR")
+elif REMOTE_USER == "root":
+    REMOTE_DIR = "/root"
+else:
+    REMOTE_DIR = f"/home/{REMOTE_USER}"
 SSH_KEY = os.getenv("SSH_KEY")
 REMOTE_PASSWORD = os.getenv("REMOTE_PASSWORD")
 REGISTRY_TYPE = os.getenv("REGISTRY_TYPE", "ghcr")
