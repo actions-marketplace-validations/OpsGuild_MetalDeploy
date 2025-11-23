@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import os
 import tempfile
 
@@ -33,12 +34,21 @@ AUTH_GIT_URL = None
 
 
 def setup_ssh_key():
-    """Setup SSH key file from environment variable"""
+    """Setup SSH key file from environment variable (supports raw or base64 encoded)"""
     global SSH_KEY_PATH
 
     if SSH_KEY:
+        try:
+            decoded_key = base64.b64decode(SSH_KEY).decode("utf-8")
+            if "BEGIN" in decoded_key and "PRIVATE KEY" in decoded_key:
+                key_content = decoded_key
+            else:
+                key_content = SSH_KEY
+        except Exception:
+            key_content = SSH_KEY
+
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pem") as f:
-            f.write(SSH_KEY)
+            f.write(key_content)
             SSH_KEY_PATH = f.name
         os.chmod(SSH_KEY_PATH, 0o600)
 
@@ -65,8 +75,21 @@ def setup_git_auth():
         else:
             git_ssh_key = GIT_SSH_KEY
 
+        # Try to decode base64, if it fails, assume it's raw
+        try:
+            decoded_key = base64.b64decode(git_ssh_key).decode("utf-8")
+            # Check if decoded result looks like an SSH key
+            if "BEGIN" in decoded_key and "PRIVATE KEY" in decoded_key:
+                key_content = decoded_key
+            else:
+                # Decoded but doesn't look like a key, use raw
+                key_content = git_ssh_key
+        except Exception:
+            # Not base64 or decode failed, use as raw
+            key_content = git_ssh_key
+
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pem") as f:
-            f.write(git_ssh_key)
+            f.write(key_content)
             GIT_SSH_KEY_PATH = f.name
         os.chmod(GIT_SSH_KEY_PATH, 0o600)
 
