@@ -90,10 +90,41 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.x'
-    - name: Install Poetry
+    - name: Cache Poetry installation
+      uses: actions/cache@v4
+      id: cache-poetry-bin
+      with:
+        path: ~/.local/bin
+        key: ${{ runner.os }}-poetry
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+    - name: Get Poetry lock hash
+      id: poetry-lock-hash
       shell: bash
       run: |
+        cd ${{ github.action_path }}
+        if [ -f poetry.lock ]; then
+          LOCK_HASH=$(sha256sum poetry.lock | cut -d' ' -f1 | head -c 16)
+          echo "hash=$LOCK_HASH" >> $GITHUB_OUTPUT
+        else
+          echo "hash=no-lock" >> $GITHUB_OUTPUT
+        fi
+    - name: Cache Poetry virtualenv
+      uses: actions/cache@v4
+      id: cache-poetry-venv
+      with:
+        path: ~/.cache/pypoetry/virtualenvs
+        key: ${{ runner.os }}-poetry-venv-${{ steps.poetry-lock-hash.outputs.hash }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-venv-
+    - name: Install Poetry
+      shell: bash
+      if: steps.cache-poetry-bin.outputs.cache-hit != 'true'
+      run: |
         curl -sSL https://install.python-poetry.org | python3 -
+    - name: Add Poetry to PATH
+      shell: bash
+      run: |
         echo "$HOME/.local/bin" >> $GITHUB_PATH
     - name: Install dependencies
       shell: bash
