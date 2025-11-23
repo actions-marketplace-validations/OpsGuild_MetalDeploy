@@ -113,6 +113,8 @@ def setup_git_auth():
 def run_command(conn, command, force_sudo=False):
     """
     Helper function to run commands with optional sudo support.
+    When using sudo, sources the user's shell profile to ensure functions
+    and aliases defined in .bashrc are available.
     """
 
     use_sudo_for_this = USE_SUDO or force_sudo
@@ -120,12 +122,30 @@ def run_command(conn, command, force_sudo=False):
     if not use_sudo_for_this:
         return conn.run(command, warn=False)
 
+    if REMOTE_USER == "root":
+        home_dir = "/root"
+    else:
+        home_dir = f"/home/{REMOTE_USER}"
+
+    escaped_command = command.replace("'", "'\"'\"'")
+
+    # Wrap command in bash that sources the profile to make functions available
+    # Try .bashrc first, then .bash_profile, then .profile as fallback
+    wrapped_command = (
+        f"bash -c '"
+        f"source {home_dir}/.bashrc 2>/dev/null || "
+        f"source {home_dir}/.bash_profile 2>/dev/null || "
+        f"source {home_dir}/.profile 2>/dev/null || true; "
+        f"{escaped_command}"
+        f"'"
+    )
+
     if REMOTE_PASSWORD:
         escaped_pwd = REMOTE_PASSWORD.replace("'", "'\"'\"'")
-        full_command = f"printf '%s\\n' '{escaped_pwd}' | sudo -S {command}"
+        full_command = f"printf '%s\\n' '{escaped_pwd}' | sudo -S {wrapped_command}"
         return conn.run(full_command, pty=False, warn=False)
     else:
-        return conn.run(f"sudo {command}", warn=False)
+        return conn.run(f"sudo {wrapped_command}", warn=False)
 
 
 def install_dependencies(conn):
