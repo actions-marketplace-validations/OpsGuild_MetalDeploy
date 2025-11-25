@@ -119,9 +119,14 @@ runs:
           ${{ runner.os }}-poetry-venv-
     - name: Install Poetry
       shell: bash
-      if: steps.cache-poetry-bin.outputs.cache-hit != 'true'
       run: |
-        curl -sSL https://install.python-poetry.org | python3 -
+        if [ ! -f "$HOME/.local/bin/poetry" ]; then
+          echo "Poetry not found in cache, installing..."
+          curl -sSL https://install.python-poetry.org | python3 -
+        else
+          echo "Poetry found in cache"
+          chmod +x "$HOME/.local/bin/poetry"
+        fi
     - name: Add Poetry to PATH
       shell: bash
       run: |
@@ -131,10 +136,6 @@ runs:
       run: |
         cd ${{ github.action_path }}
         export PATH="$HOME/.local/bin:$PATH"
-        if ! command -v poetry &> /dev/null; then
-          echo "Poetry not found, installing..."
-          curl -sSL https://install.python-poetry.org | python3 -
-        fi
         poetry install --only=main
     - name: Run deployment
       shell: bash
