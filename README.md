@@ -98,7 +98,7 @@ jobs:
 | `baremetal_command` | Command to run for baremetal deployment (e.g., "make deploy") | ❌ | - |
 | `k8s_manifest_path` | Path to Kubernetes manifest file or directory | ❌ | - |
 | `k8s_namespace` | Kubernetes namespace to deploy to | ❌ | `default` |
-| `use_sudo` | Use sudo for commands (true/false). Some system commands may still require sudo | ❌ | `true` |
+| `use_sudo` | Use sudo for commands (true/false). Some system commands may still require sudo | ❌ | `false` |
 
 ## Outputs
 
@@ -238,13 +238,13 @@ The action automatically installs dependencies based on the deployment type:
 
 ## Sudo Usage
 
-By default, the action uses `sudo` for commands. You can disable this by setting `use_sudo: false`:
+By default, the action doesnt use `sudo` for commands. You can enable this by setting `use_sudo: true`:
 
 ```yaml
-use_sudo: false  # Run commands without sudo
+use_sudo: true  # Run commands with sudo
 ```
 
-**Note:** Some system-level commands (like `apt-get`, `systemctl`, `usermod`) will still require sudo regardless of this setting. Deployment commands (like `docker compose`, `make`, custom scripts) will respect the `use_sudo` setting.
+**Note:** Some system-level commands (like `apt-get`, `systemctl`, `usermod`) will still use sudo regardless of this setting. Deployment commands (like `docker compose`, `make`, custom scripts) will respect the `use_sudo` setting.
 
 This is useful when:
 - Your SSH user already has necessary permissions
