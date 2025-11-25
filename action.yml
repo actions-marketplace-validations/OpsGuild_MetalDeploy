@@ -76,7 +76,7 @@ inputs:
   use_sudo:
     description: 'Use sudo for commands (true/false). Some commands may still require sudo regardless of this setting'
     required: false
-    default: 'true'
+    default: 'false'
 outputs:
   deployment_status:
     description: 'Deployment status (success/failed)'
@@ -130,11 +130,17 @@ runs:
       shell: bash
       run: |
         cd ${{ github.action_path }}
+        export PATH="$HOME/.local/bin:$PATH"
+        if ! command -v poetry &> /dev/null; then
+          echo "Poetry not found, installing..."
+          curl -sSL https://install.python-poetry.org | python3 -
+        fi
         poetry install --only=main
     - name: Run deployment
       shell: bash
       run: |
         cd ${{ github.action_path }}
+        export PATH="$HOME/.local/bin:$PATH"
         poetry run python deploy.py
       env:
         GIT_URL: ${{ inputs.git_url }}
