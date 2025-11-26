@@ -94,7 +94,7 @@ runs:
       uses: actions/cache@v4
       id: cache-poetry-bin
       with:
-        path: ~/.local/bin
+        path: ${{ github.workspace }}/.poetry
         key: ${{ runner.os }}-poetry
         restore-keys: |
           ${{ runner.os }}-poetry-
@@ -120,28 +120,29 @@ runs:
     - name: Install Poetry
       shell: bash
       run: |
-        if [ ! -f "$HOME/.local/bin/poetry" ]; then
+        POETRY_HOME="${{ github.workspace }}/.poetry"
+        POETRY_BIN="$POETRY_HOME/bin"
+        mkdir -p "$POETRY_BIN"
+        if [ ! -f "$POETRY_BIN/poetry" ]; then
           echo "Poetry not found in cache, installing..."
-          curl -sSL https://install.python-poetry.org | python3 -
+          curl -sSL https://install.python-poetry.org | python3 - --install-dir "$POETRY_BIN" --version 2.2.1
         else
           echo "Poetry found in cache"
-          chmod +x "$HOME/.local/bin/poetry"
+          chmod +x "$POETRY_BIN/poetry"
         fi
     - name: Add Poetry to PATH
       shell: bash
       run: |
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        echo "${{ github.workspace }}/.poetry/bin" >> $GITHUB_PATH
     - name: Install dependencies
       shell: bash
       run: |
         cd ${{ github.action_path }}
-        export PATH="$HOME/.local/bin:$PATH"
         poetry install --only=main
     - name: Run deployment
       shell: bash
       run: |
         cd ${{ github.action_path }}
-        export PATH="$HOME/.local/bin:$PATH"
         poetry run python deploy.py
       env:
         GIT_URL: ${{ inputs.git_url }}
