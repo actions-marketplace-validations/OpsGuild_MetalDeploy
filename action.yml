@@ -120,12 +120,12 @@ runs:
     - name: Install Poetry
       shell: bash
       run: |
-        POETRY_HOME="${{ github.workspace }}/.poetry"
+        export POETRY_HOME="${{ github.workspace }}/.poetry"
         POETRY_BIN="$POETRY_HOME/bin"
         mkdir -p "$POETRY_BIN"
         if [ ! -f "$POETRY_BIN/poetry" ]; then
           echo "Poetry not found in cache, installing..."
-          curl -sSL https://install.python-poetry.org | python3 - --install-dir "$POETRY_BIN" --version 2.2.1
+          curl -sSL https://install.python-poetry.org | POETRY_HOME="$POETRY_HOME" python3 - --version 2.2.1
         else
           echo "Poetry found in cache"
           chmod +x "$POETRY_BIN/poetry"
