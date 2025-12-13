@@ -102,12 +102,12 @@ jobs:
 | `git_auth_method` | Git authentication method: token, ssh, or none | ❌ | `token` |
 | `git_token` | GitHub token for authentication (required if git_auth_method is token) | ❌ | - |
 | `git_user` | GitHub username (required if git_auth_method is token) | ❌ | `${{ github.actor }}` |
-| `git_ssh_key` | SSH private key for Git authentication (required if git_auth_method is ssh) | ❌ | - |
+| `git_ssh_key` | SSH private key for Git authentication (required if git_auth_method is ssh). Supports raw or base64-encoded values | ❌ | - |
 | `deployment_type` | Deployment type: baremetal, docker, or k8s | ❌ | `baremetal` |
 | `remote_host` | SSH remote host IP or domain | ✅ | - |
 | `remote_user` | SSH remote user | ❌ | `root` |
 | `remote_dir` | Remote directory path for deployment | ❌ | `/home/{remote_user}` |
-| `ssh_key` | SSH private key for authentication | ❌ | - |
+| `ssh_key` | SSH private key for authentication (raw or base64-encoded) | ❌ | - |
 | `remote_password` | SSH password (if not using SSH key) | ❌ | - |
 | `environment` | Deployment environment (dev, staging, prod) | ❌ | `dev` |
 | `registry_type` | Docker registry type (ghcr, dockerhub, ecr) | ❌ | `ghcr` |
@@ -131,6 +131,8 @@ jobs:
 ## Deployment Types
 
 The `deployment_type` parameter determines how your application is deployed to the remote server. MetalDeploy supports three deployment types, each optimized for different use cases. **By default, MetalDeploy uses `baremetal` deployment**, which provides direct server deployment without containerization overhead.
+
+**Important:** If you provide `deploy_command`, MetalDeploy will run that command first (in the repository directory) and skip the deployment-type-specific flow. This works for all deployment types, so you can override docker/k8s/baremetal behavior with a custom command when needed.
 
 ### 1. Baremetal Deployment (Default)
 
@@ -517,6 +519,7 @@ git_ssh_key: ${{ secrets.GIT_SSH_KEY }}
 - It configures Git to use this key for authentication
 - Automatically converts HTTPS URLs to SSH format (e.g., `https://github.com/user/repo.git` → `git@github.com:user/repo.git`)
 - The key is cleaned up after the deployment
+- Keys can be provided **raw** or **base64-encoded**; the action will auto-detect and decode if needed
 
 **Use when:**
 - You have deploy keys set up in your repository
