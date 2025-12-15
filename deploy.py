@@ -7,12 +7,21 @@ from fabric import Connection
 from invoke import Responder
 
 # Configuration from environment variables
-GIT_URL = os.getenv("GIT_URL", "")
+# Default GIT_URL to current repository if in GitHub Actions context
+git_url_env = os.getenv("GIT_URL", "").strip()
+if not git_url_env and os.getenv("GITHUB_REPOSITORY"):
+    # Construct GitHub repository URL from GITHUB_REPOSITORY (format: owner/repo)
+    github_repo = os.getenv("GITHUB_REPOSITORY")
+    GIT_URL = f"https://github.com/{github_repo}.git"
+else:
+    GIT_URL = git_url_env
+
 GIT_AUTH_METHOD = os.getenv("GIT_AUTH_METHOD", "token").lower()
 GIT_TOKEN = os.getenv("GIT_TOKEN", "")
-GIT_USER = os.getenv("GIT_USER", "")
+# Use GITHUB_ACTOR as fallback if GIT_USER is not set or is empty
+GIT_USER = os.getenv("GIT_USER", "").strip() or os.getenv("GITHUB_ACTOR", "")
 GIT_SSH_KEY = os.getenv("GIT_SSH_KEY")
-DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "docker").lower()
+DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "baremetal").lower()
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 REMOTE_USER = os.getenv("REMOTE_USER", "root")
 REMOTE_HOST = os.getenv("REMOTE_HOST", "127.0.0.1")
@@ -27,7 +36,7 @@ SSH_KEY = os.getenv("SSH_KEY")
 REMOTE_PASSWORD = os.getenv("REMOTE_PASSWORD")
 REGISTRY_TYPE = os.getenv("REGISTRY_TYPE", "ghcr")
 PROFILE = os.getenv("PROFILE")
-BAREMETAL_COMMAND = os.getenv("BAREMETAL_COMMAND")
+DEPLOY_COMMAND = os.getenv("DEPLOY_COMMAND")
 K8S_MANIFEST_PATH = os.getenv("K8S_MANIFEST_PATH")
 K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
 USE_SUDO = os.getenv("USE_SUDO", "false").lower() == "true"
@@ -487,33 +496,45 @@ def deploy_baremetal(conn):
     """
 
     with conn.cd(GIT_SUBDIR):
-        if BAREMETAL_COMMAND:
-            print(f"======= Running baremetal command: {BAREMETAL_COMMAND} =======")
-            run_command(conn, BAREMETAL_COMMAND)
-        else:
-            # Check for deploy.sh first
-            deploy_script_check = conn.run(
-                "test -f deploy.sh && echo 'exists' || echo 'not exists'",
-                hide=True,
+        # Check for deploy.sh first
+        deploy_script_check = conn.run("test -f deploy.sh", hide=True, warn=True)
+        if deploy_script_check.ok:
+            print("======= Running deploy.sh =======")
+            conn.run("chmod +x deploy.sh", warn=True)
+            # Run command and check exit code in the same shell session
+            result = run_command(
+                conn,
+                "./deploy.sh; EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then echo 'Command failed with exit code:' $EXIT_CODE; exit $EXIT_CODE; fi",
             )
-            if "exists" in deploy_script_check.stdout:
-                print("======= Running deploy.sh =======")
-                conn.run("chmod +x deploy.sh")
-                run_command(conn, "./deploy.sh")
-            else:
-                # Check if Makefile exists
-                makefile_check = conn.run(
-                    "test -f Makefile && echo 'exists' || echo 'not exists'",
-                    hide=True,
+            # Check if command output indicates failure
+            if "Command failed with exit code:" in result.stdout:
+                for line in result.stdout.split("\n"):
+                    if "Command failed with exit code:" in line:
+                        exit_code = line.split("exit code:")[-1].strip()
+                        raise ValueError(f"deploy.sh failed with exit code: {exit_code}")
+        else:
+            # Check if Makefile exists
+            makefile_check = conn.run("test -f Makefile", hide=True, warn=True)
+            if makefile_check.ok:
+                print(f"======= Running make target: {ENVIRONMENT} =======")
+                # Run command and check exit code in the same shell session
+                result = run_command(
+                    conn,
+                    f"make {ENVIRONMENT}; EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then echo 'Command failed with exit code:' $EXIT_CODE; exit $EXIT_CODE; fi",
                 )
-                if "exists" in makefile_check.stdout:
-                    print(f"======= Running make target: {ENVIRONMENT} =======")
-                    run_command(conn, f"make {ENVIRONMENT}")
-                else:
-                    raise ValueError(
-                        "No baremetal_command specified and no deploy.sh or Makefile found. "
-                        "Please specify baremetal_command input."
-                    )
+                # Check if command output indicates failure
+                if "Command failed with exit code:" in result.stdout:
+                    for line in result.stdout.split("\n"):
+                        if "Command failed with exit code:" in line:
+                            exit_code = line.split("exit code:")[-1].strip()
+                            raise ValueError(
+                                f"make {ENVIRONMENT} failed with exit code: {exit_code}"
+                            )
+            else:
+                raise ValueError(
+                    "No deploy_command specified and no deploy.sh or Makefile found. "
+                    "Please specify deploy_command input."
+                )
     print("======= Baremetal deployment completed =======")
 
 
@@ -787,6 +808,24 @@ def deploy(conn):
     """
 
     fix_database_permissions(conn)
+
+    # If a deploy_command is provided, always honor it first regardless of deployment type
+    if DEPLOY_COMMAND:
+        with conn.cd(GIT_SUBDIR):
+            print(f"======= Running deploy command: {DEPLOY_COMMAND} =======")
+            # Run command and check exit code in the same shell session
+            result = run_command(
+                conn,
+                f"{DEPLOY_COMMAND}; EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then echo 'Command failed with exit code:' $EXIT_CODE; exit $EXIT_CODE; fi",
+            )
+            # Check if command output indicates failure
+            if "Command failed with exit code:" in result.stdout:
+                for line in result.stdout.split("\n"):
+                    if "Command failed with exit code:" in line:
+                        exit_code = line.split("exit code:")[-1].strip()
+                        raise ValueError(f"Deploy command failed with exit code: {exit_code}")
+        print("======= Deploy command completed =======")
+        return
 
     if DEPLOYMENT_TYPE == "baremetal":
         deploy_baremetal(conn)
