@@ -1,5 +1,6 @@
 import os
 
+
 class Config:
     def __init__(self):
         self.load()
@@ -44,14 +45,20 @@ class Config:
         self.USE_SUDO = get_bool_env("USE_SUDO")
 
         self.PROJECT_NAME = self.GIT_URL.split("/")[-1].split(".")[0] if self.GIT_URL else ""
-        self.GIT_DIR = os.path.join(self.REMOTE_DIR, self.PROJECT_NAME) if self.PROJECT_NAME else self.REMOTE_DIR
+        self.GIT_DIR = (
+            os.path.join(self.REMOTE_DIR, self.PROJECT_NAME)
+            if self.PROJECT_NAME
+            else self.REMOTE_DIR
+        )
         self.GIT_SUBDIR = os.path.join(self.GIT_DIR, "")
 
         # Environment file generation configuration
         self.ENV_FILES_GENERATE = get_bool_env("ENV_FILES_GENERATE")
         self.ENV_FILES_STRUCTURE = os.getenv("ENV_FILES_STRUCTURE", "auto").lower()
         self.ENV_FILES_PATH = os.getenv("ENV_FILES_PATH")
-        self.ENV_FILES_PATTERNS = os.getenv("ENV_FILES_PATTERNS", ".env.app,.env.database").split(",")
+        self.ENV_FILES_PATTERNS = os.getenv("ENV_FILES_PATTERNS", ".env.app,.env.database").split(
+            ","
+        )
         self.ENV_FILES_CREATE_ROOT = get_bool_env("ENV_FILES_CREATE_ROOT", "false")
         self.ENV_FILES_FORMAT = os.getenv("ENV_FILES_FORMAT", "auto").lower()
 
@@ -59,5 +66,6 @@ class Config:
         self.SSH_KEY_PATH = None
         self.GIT_SSH_KEY_PATH = None
         self.AUTH_GIT_URL = None
+
 
 config = Config()

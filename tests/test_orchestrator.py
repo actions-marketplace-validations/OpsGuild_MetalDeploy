@@ -1,4 +1,3 @@
-import os
 from unittest.mock import Mock, patch
 
 import pytest
@@ -23,9 +22,7 @@ def mock_conn():
     return conn
 
 
-def test_handle_connection_flow(
-    mock_conn_class, mock_conn, monkeypatch, tmp_path
-):
+def test_handle_connection_flow(mock_conn_class, mock_conn, monkeypatch, tmp_path):
     # Setup
     monkeypatch.setattr(config, "REMOTE_HOST", "1.2.3.4")
     monkeypatch.setattr(config, "ENV_FILES_GENERATE", True)
@@ -45,7 +42,6 @@ def test_handle_connection_flow(
         patch("src.orchestrator.generate_env_files"),
         patch("src.orchestrator.deploy"),
     ):
-
         orchestrator.handle_connection()
 
     # Verify outputs

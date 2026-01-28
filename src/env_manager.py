@@ -2,9 +2,11 @@ import json
 import os
 import re
 from typing import Dict, List
+
 import yaml
-from fabric import Connection
+
 from src import config
+
 
 def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> Dict[str, str]:
     """Parse all-in-one secret with multiple format support"""
@@ -12,7 +14,9 @@ def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> D
         content = secret_content.strip()
         if content.startswith("{") and content.endswith("}"):
             format_hint = "json"
-        elif (content.startswith(("key:", "value:", "-", " {")) or ":" in content) and "\n" in content:
+        elif (
+            content.startswith(("key:", "value:", "-", " {")) or ":" in content
+        ) and "\n" in content:
             format_hint = "yaml"
         elif "=" in content and "\n" in content:
             format_hint = "env"
@@ -42,6 +46,7 @@ def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> D
         return env_vars
     return {}
 
+
 def detect_file_patterns(all_env_vars: Dict[str, str], structure: str) -> List[str]:
     """Auto-detect file patterns from variable names"""
     if structure == "single":
@@ -61,7 +66,10 @@ def detect_file_patterns(all_env_vars: Dict[str, str], structure: str) -> List[s
 
     return sorted(list(patterns)) or [".env.app"]
 
-def determine_file_structure(structure: str, patterns: List[str], environment: str, base_path: str) -> Dict[str, str]:
+
+def determine_file_structure(
+    structure: str, patterns: List[str], environment: str, base_path: str
+) -> Dict[str, str]:
     """Determine file paths based on structure preference"""
     file_paths = {}
     if structure == "auto":
@@ -77,7 +85,11 @@ def determine_file_structure(structure: str, patterns: List[str], environment: s
         for pattern in patterns:
             file_paths[pattern] = os.path.join(custom_base, pattern)
     elif structure == "nested":
-        env_dir = os.path.join(custom_base, environment) if config.ENV_FILES_PATH else os.path.join(custom_base, ".envs", environment)
+        env_dir = (
+            os.path.join(custom_base, environment)
+            if config.ENV_FILES_PATH
+            else os.path.join(custom_base, ".envs", environment)
+        )
         for pattern in patterns:
             file_paths[pattern] = os.path.join(env_dir, pattern)
     elif structure == "custom":
@@ -87,7 +99,10 @@ def determine_file_structure(structure: str, patterns: List[str], environment: s
 
     return file_paths
 
-def merge_env_vars_by_priority(all_env_vars: Dict[str, str], environment: str, pattern: str) -> Dict[str, str]:
+
+def merge_env_vars_by_priority(
+    all_env_vars: Dict[str, str], environment: str, pattern: str
+) -> Dict[str, str]:
     """Merge environment variables with proper priority"""
     merged = {}
     file_pattern = pattern.replace(".env.", "").upper()
@@ -112,6 +127,7 @@ def merge_env_vars_by_priority(all_env_vars: Dict[str, str], environment: str, p
                 merged[key] = value
     return merged
 
+
 def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
     """Auto-detect and parse environment-specific secrets with priority system"""
     all_env_vars = {k: v for k, v in os.environ.items() if k.startswith("ENV_")}
@@ -127,6 +143,7 @@ def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
             result[pattern] = merged_vars
     return result
 
+
 def create_env_file(conn, file_path: str, env_vars: Dict[str, str]) -> None:
     """Create .env file with secure permissions (0o600)"""
     if not env_vars:
@@ -137,6 +154,7 @@ def create_env_file(conn, file_path: str, env_vars: Dict[str, str]) -> None:
     env_content = "\n".join([f"{k}={v}" for k, v in env_vars.items()])
     conn.run(f"cat > \"{file_path}\" << 'EOF'\n{env_content}\nEOF")
     conn.run(f'chmod 600 "{file_path}"')
+
 
 def generate_env_files(conn) -> None:
     """Main function to generate environment files from secrets"""
@@ -149,13 +167,15 @@ def generate_env_files(conn) -> None:
         return
     all_merged_vars = {}
     for pattern, env_vars in env_file_data.items():
-        file_paths = determine_file_structure(config.ENV_FILES_STRUCTURE, [pattern], config.ENVIRONMENT, config.GIT_SUBDIR)
+        file_paths = determine_file_structure(
+            config.ENV_FILES_STRUCTURE, [pattern], config.ENVIRONMENT, config.GIT_SUBDIR
+        )
         file_path = file_paths.get(pattern)
         if file_path:
             print(f"📝 Creating {file_path} with {len(env_vars)} variables")
             create_env_file(conn, file_path, env_vars)
             if config.ENV_FILES_CREATE_ROOT:
-                 all_merged_vars.update(env_vars)
+                all_merged_vars.update(env_vars)
     if config.ENV_FILES_CREATE_ROOT and all_merged_vars:
         root_env_path = os.path.join(config.GIT_SUBDIR, ".env")
         print(f"📝 Creating combined root {root_env_path} with {len(all_merged_vars)} variables")
