@@ -30,7 +30,7 @@ pipeline {
         REMOTE_USER = "${params.REMOTE_USER}"
         SSH_KEY = "${params.SSH_KEY}"
         DEPLOYMENT_TYPE = "${params.DEPLOYMENT_TYPE}"
-        
+
         // Environment File Generation examples:
         // Variables starting with ENV_ will automatically be converted to .env files
         ENV_FILES_GENERATE = "true"
@@ -42,10 +42,10 @@ pipeline {
             steps {
                 script {
                     // Automatically map ALL Jenkins parameters to environment variables
-                    // This means any parameter you define (e.g. ENV_APP_DB) 
+                    // This means any parameter you define (e.g. ENV_APP_DB)
                     // is automatically available to the script without manual mapping.
                     def paramEnv = params.collect { k, v -> "${k}=${v}" }
-                    
+
                     withEnv(paramEnv) {
                         echo "Starting deployment to ${env.REMOTE_HOST} (${env.ENVIRONMENT})..."
                         sh "python main.py"

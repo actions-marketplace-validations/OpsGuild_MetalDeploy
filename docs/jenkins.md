@@ -87,7 +87,7 @@ stage('Deploy') {
         script {
             // Collect all parameters into an environment-compatible format
             def paramEnv = params.collect { k, v -> "${k}=${v}" }
-            
+
             withEnv(paramEnv) {
                 sh "python main.py"
             }
