@@ -46,7 +46,7 @@ htmlcov/
 Thumbs.db
 
 # Poetry
-poetry.lock
+# poetry.lock is committed to ensure reproducible builds in Docker
 
 # Temporary files
 *.tmp
