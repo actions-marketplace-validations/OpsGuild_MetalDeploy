@@ -1,9 +1,12 @@
 import base64
 import os
 import tempfile
+
 from invoke import Responder
+
 from src import config
 from src.connection import run_command
+
 
 def setup_git_auth():
     """Setup Git authentication based on GIT_AUTH_METHOD"""
@@ -11,7 +14,9 @@ def setup_git_auth():
         if not config.GIT_TOKEN or not config.GIT_USER:
             raise ValueError("GIT_TOKEN and GIT_USER are required when git_auth_method is 'token'")
         prefix = f"https://{config.GIT_USER}:{config.GIT_TOKEN}@"
-        suffix = config.GIT_URL.split("https://")[-1] if "https://" in config.GIT_URL else config.GIT_URL
+        suffix = (
+            config.GIT_URL.split("https://")[-1] if "https://" in config.GIT_URL else config.GIT_URL
+        )
         config.AUTH_GIT_URL = prefix + suffix
     elif config.GIT_AUTH_METHOD == "ssh":
         if not config.GIT_SSH_KEY:
@@ -51,6 +56,7 @@ def setup_git_auth():
         raise ValueError(
             f"Invalid git_auth_method: {config.GIT_AUTH_METHOD}. Must be 'token', 'ssh', or 'none'"
         )
+
 
 def clone_repo(conn):
     """Clone the Git repository to the remote server"""

@@ -1,7 +1,9 @@
 import base64
 import os
 import tempfile
+
 from src import config
+
 
 def setup_ssh_key():
     """Setup SSH key file from environment variable (supports raw or base64 encoded)"""
@@ -19,6 +21,7 @@ def setup_ssh_key():
             f.write(key_content)
             config.SSH_KEY_PATH = f.name
         os.chmod(config.SSH_KEY_PATH, 0o600)
+
 
 def run_command(conn, command, force_sudo=False):
     """
@@ -61,6 +64,7 @@ def run_command(conn, command, force_sudo=False):
         return conn.run(full_command, pty=False, warn=False)
     else:
         return conn.run(f"sudo {wrapped_command}", warn=False)
+
 
 def install_dependencies(conn):
     """Install required system dependencies"""

@@ -2,6 +2,7 @@ from src import config
 from src.connection import run_command
 from src.providers.docker import docker_login
 
+
 def install_kubectl(conn):
     """Install kubectl if not already installed"""
     kubectl_check = conn.run("which kubectl", warn=True, hide=True)
@@ -9,12 +10,17 @@ def install_kubectl(conn):
         print("======= kubectl already installed =======")
         return
     print("======= Installing kubectl =======")
-    version_result = conn.run("curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt", hide=True)
+    version_result = conn.run(
+        "curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt", hide=True
+    )
     latest_version = version_result.stdout.strip()
-    conn.run(f"curl -LO https://storage.googleapis.com/kubernetes-release/release/{latest_version}/bin/linux/amd64/kubectl")
+    conn.run(
+        f"curl -LO https://storage.googleapis.com/kubernetes-release/release/{latest_version}/bin/linux/amd64/kubectl"
+    )
     conn.run("chmod +x ./kubectl")
     run_command(conn, "mv ./kubectl /usr/local/bin/kubectl", force_sudo=True)
     print("======= kubectl installed =======")
+
 
 def install_helm(conn):
     """Install helm if not already installed"""
@@ -25,15 +31,25 @@ def install_helm(conn):
     print("======= Installing helm =======")
     if config.REMOTE_PASSWORD:
         escaped_pwd = config.REMOTE_PASSWORD.replace("'", "'\"'\"'")
-        conn.run(f"cat > /tmp/helm-askpass.sh << 'HELMASKPASS_EOF'\n#!/bin/sh\nprintf '%s\\n' '{escaped_pwd}'\nHELMASKPASS_EOF", warn=False)
+        conn.run(
+            f"cat > /tmp/helm-askpass.sh << 'HELMASKPASS_EOF'\n#!/bin/sh\nprintf '%s\\n' '{escaped_pwd}'\nHELMASKPASS_EOF",
+            warn=False,
+        )
         conn.run("chmod +x /tmp/helm-askpass.sh", warn=False)
-        conn.run("curl -s https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 > /tmp/get-helm-3.sh", warn=False)
+        conn.run(
+            "curl -s https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 > /tmp/get-helm-3.sh",
+            warn=False,
+        )
         conn.run("sed -i 's/sudo /sudo -A /g' /tmp/get-helm-3.sh", warn=False)
         conn.run("chmod +x /tmp/get-helm-3.sh", warn=False)
         conn.run("SUDO_ASKPASS=/tmp/helm-askpass.sh bash /tmp/get-helm-3.sh", pty=False, warn=False)
     else:
-        conn.run("curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash", warn=False)
+        conn.run(
+            "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash",
+            warn=False,
+        )
     print("======= helm installed =======")
+
 
 def install_k3s(conn):
     """Install k3s if not already installed"""
@@ -47,6 +63,7 @@ def install_k3s(conn):
     run_command(conn, "systemctl start k3s", force_sudo=True)
     conn.run("echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' >> ~/.bashrc")
     print("======= k3s installed =======")
+
 
 def deploy_k8s(conn):
     """Deploy using Kubernetes"""
@@ -63,12 +80,19 @@ def deploy_k8s(conn):
                     if conn.run(f"test -f {file}", hide=True, warn=True).ok:
                         manifest_path = file
                         break
-        if not manifest_path: raise ValueError("No k8s_manifest_path specified and no k8s manifests found.")
+        if not manifest_path:
+            raise ValueError("No k8s_manifest_path specified and no k8s manifests found.")
         print(f"======= Deploying to Kubernetes using: {manifest_path} =======")
         kubeconfig_cmd = "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml"
-        conn.run(f"{kubeconfig_cmd} && kubectl create namespace {config.K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -")
+        conn.run(
+            f"{kubeconfig_cmd} && kubectl create namespace {config.K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+        )
         if conn.run(f"test -d {manifest_path}", warn=True, hide=True).ok:
-            conn.run(f"{kubeconfig_cmd} && kubectl apply -f {manifest_path}/ -n {config.K8S_NAMESPACE}")
+            conn.run(
+                f"{kubeconfig_cmd} && kubectl apply -f {manifest_path}/ -n {config.K8S_NAMESPACE}"
+            )
         else:
-            conn.run(f"{kubeconfig_cmd} && kubectl apply -f {manifest_path} -n {config.K8S_NAMESPACE}")
+            conn.run(
+                f"{kubeconfig_cmd} && kubectl apply -f {manifest_path} -n {config.K8S_NAMESPACE}"
+            )
     print("======= Kubernetes deployment completed =======")
