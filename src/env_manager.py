@@ -11,7 +11,16 @@ from src import config
 def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> Dict[str, str]:
     """Parse all-in-one secret with multiple format support"""
     if format_hint == "auto":
-        content = secret_content.strip()
+        secret_content = secret_content.strip()
+        # If content is a file path that exists, read it
+        if os.path.isfile(secret_content):
+            try:
+                with open(secret_content, "r") as f:
+                    secret_content = f.read().strip()
+            except Exception:
+                pass  # Treat as normal string if read fails
+
+        content = secret_content
         if content.startswith("{") and content.endswith("}"):
             format_hint = "json"
         elif (
@@ -168,7 +177,10 @@ def generate_env_files(conn) -> None:
     all_merged_vars = {}
     for pattern, env_vars in env_file_data.items():
         file_paths = determine_file_structure(
-            config.ENV_FILES_STRUCTURE, [pattern], config.ENVIRONMENT, config.GIT_SUBDIR
+            config.ENV_FILES_STRUCTURE,
+            [pattern],
+            config.ENVIRONMENT,
+            config.GIT_SUBDIR,
         )
         file_path = file_paths.get(pattern)
         if file_path:
