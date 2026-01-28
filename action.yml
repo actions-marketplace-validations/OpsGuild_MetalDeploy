@@ -77,6 +77,29 @@ inputs:
     description: 'Use sudo for commands (true/false). Some commands may still require sudo regardless of this setting'
     required: false
     default: 'false'
+  env_files_generate:
+    description: 'Generate .env files from GitHub secrets/variables'
+    required: false
+    default: 'false'
+  env_files_structure:
+    description: 'Environment file structure: single, flat, nested, auto, custom'
+    required: false
+    default: 'auto'
+  env_files_path:
+    description: 'Custom path for environment files (when structure=custom)'
+    required: false
+  env_files_patterns:
+    description: 'Comma-separated list of .env file patterns (e.g., .env.app,.env.database)'
+    required: false
+    default: '.env.app,.env.database'
+  env_files_create_root:
+    description: 'Also create .env files in project root'
+    required: false
+    default: 'true'
+  env_files_format:
+    description: 'Format for parsing all-in-one secrets: auto, env, json, yaml'
+    required: false
+    default: 'auto'
 outputs:
   deployment_status:
     description: 'Deployment status (success/failed)'
@@ -169,3 +192,9 @@ runs:
         K8S_MANIFEST_PATH: ${{ inputs.k8s_manifest_path }}
         K8S_NAMESPACE: ${{ inputs.k8s_namespace }}
         USE_SUDO: ${{ inputs.use_sudo }}
+        ENV_FILES_GENERATE: ${{ inputs.env_files_generate }}
+        ENV_FILES_STRUCTURE: ${{ inputs.env_files_structure }}
+        ENV_FILES_PATH: ${{ inputs.env_files_path }}
+        ENV_FILES_PATTERNS: ${{ inputs.env_files_patterns }}
+        ENV_FILES_CREATE_ROOT: ${{ inputs.env_files_create_root }}
+        ENV_FILES_FORMAT: ${{ inputs.env_files_format }}

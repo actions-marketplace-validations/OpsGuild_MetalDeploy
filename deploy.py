@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import base64
+import json
 import os
+import re
 import tempfile
+from typing import Dict, List
 
+import yaml
 from fabric import Connection
 from invoke import Responder
 
@@ -46,6 +50,14 @@ GIT_SUBDIR = os.path.join(GIT_DIR, "")
 SSH_KEY_PATH = None
 GIT_SSH_KEY_PATH = None
 AUTH_GIT_URL = None
+
+# Environment file generation configuration
+ENV_FILES_GENERATE = os.getenv("ENV_FILES_GENERATE", "false").lower() == "true"
+ENV_FILES_STRUCTURE = os.getenv("ENV_FILES_STRUCTURE", "auto").lower()
+ENV_FILES_PATH = os.getenv("ENV_FILES_PATH")
+ENV_FILES_PATTERNS = os.getenv("ENV_FILES_PATTERNS", ".env.app,.env.database").split(",")
+ENV_FILES_CREATE_ROOT = os.getenv("ENV_FILES_CREATE_ROOT", "true").lower() == "true"
+ENV_FILES_FORMAT = os.getenv("ENV_FILES_FORMAT", "auto").lower()
 
 
 def setup_ssh_key():
@@ -884,6 +896,11 @@ def handle_connection():
         install_k3s(conn)
 
     clone_repo(conn)
+
+    # Generate environment files if enabled
+    if ENV_FILES_GENERATE:
+        generate_env_files(conn)
+
     deploy(conn)
 
     # Set deployment status
@@ -913,3 +930,249 @@ if __name__ == "__main__":
             with open(os.getenv("GITHUB_OUTPUT"), "a") as f:
                 f.write("deployment_status=failed\n")
         raise
+
+
+def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> Dict[str, str]:
+    """Parse all-in-one secret with multiple format support"""
+
+    if format_hint == "auto":
+        # Auto-detect format
+        content = secret_content.strip()
+        if content.startswith("{") and content.endswith("}"):
+            format_hint = "json"
+        elif (
+            content.startswith(("key:", "value:", "-", " {")) or ":" in content
+        ) and "\n" in content:
+            format_hint = "yaml"
+        elif "=" in content and "\n" in content:
+            format_hint = "env"
+
+    try:
+        if format_hint == "json":
+            parsed = json.loads(secret_content)
+            return {str(k): str(v) for k, v in parsed.items()}
+        elif format_hint == "yaml":
+            parsed = yaml.safe_load(secret_content) or {}
+            return {str(k): str(v) for k, v in parsed.items()}
+        elif format_hint == "env":
+            # Parse KEY=VALUE format
+            env_vars = {}
+            for line in secret_content.strip().split("\n"):
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    env_vars[key.strip()] = value.strip()
+            return env_vars
+    except Exception:
+        # Fallback to simple KEY=VALUE parsing
+        env_vars = {}
+        for line in secret_content.strip().split("\n"):
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                env_vars[key.strip()] = value.strip()
+        return env_vars
+
+    return {}
+
+
+def detect_file_patterns(all_env_vars: Dict[str, str], structure: str) -> List[str]:
+    """Auto-detect file patterns from variable names"""
+
+    if structure == "single":
+        return [".env"]
+
+    # Extract patterns from variable prefixes
+    patterns = set()
+    for var_name in all_env_vars.keys():
+        # ENV_APP_DEBUG → pattern ".env.app"
+        # ENV_DATABASE_HOST → pattern ".env.database"
+        # ENV_REDIS_URL → pattern ".env.redis"
+
+        # Check for environment-specific: ENV_ENV_FILENAME_KEY
+        match = re.match(r"^ENV_[A-Z0-9_]*_([A-Z]+)_", var_name)
+        if match:
+            filename = match.group(1).lower()
+            patterns.add(f".env.{filename}")
+            continue
+
+        # Check base patterns: ENV_APP_DEBUG → .env.app
+        match = re.match(r"^ENV_([A-Z]+)_", var_name)
+        if match:
+            filename = match.group(1).lower()
+            patterns.add(f".env.{filename}")
+
+    return sorted(list(patterns)) or [".env.app"]  # Fallback
+
+
+def determine_file_structure(
+    structure: str, patterns: List[str], environment: str, base_path: str
+) -> Dict[str, str]:
+    """Determine file paths based on structure preference"""
+
+    file_paths = {}
+
+    if structure == "auto":
+        # Auto-detect based on patterns count
+        if len(patterns) == 1:
+            structure = "flat"
+        else:
+            structure = "nested"
+
+    # Use custom path for auto/nested modes if provided
+    custom_base = base_path
+    if ENV_FILES_PATH and structure in ["auto", "nested"]:
+        custom_base = ENV_FILES_PATH
+
+    if structure == "single":
+        # Single .env file in project root or custom base
+        file_paths[".env"] = os.path.join(custom_base, ".env")
+
+    elif structure == "flat":
+        # Create files in project root or custom base
+        for pattern in patterns:
+            file_paths[pattern] = os.path.join(custom_base, pattern)
+
+    elif structure == "nested":
+        # Create files in .envs/{environment}/ folder or custom path
+        if ENV_FILES_PATH:
+            env_dir = os.path.join(custom_base, environment)
+        else:
+            env_dir = os.path.join(custom_base, ".envs", environment)
+        for pattern in patterns:
+            file_paths[pattern] = os.path.join(env_dir, pattern)
+
+    elif structure == "custom":
+        # Use custom path
+        custom_path = ENV_FILES_PATH or base_path
+        for pattern in patterns:
+            file_paths[pattern] = os.path.join(custom_path, pattern)
+
+    return file_paths
+
+
+def merge_env_vars_by_priority(
+    all_env_vars: Dict[str, str], environment: str, pattern: str
+) -> Dict[str, str]:
+    """Merge environment variables with proper priority"""
+
+    merged = {}
+    file_pattern = pattern.replace(".env.", "").upper()  # .env.app → APP
+
+    # 1. Base secrets first (lowest priority)
+    for var_name, value in all_env_vars.items():
+        if var_name.startswith(f"ENV_{file_pattern}_"):
+            key = var_name.split("_", 2)[-1]  # ENV_APP_DEBUG → DEBUG
+            merged[key] = value
+
+    # 2. Environment-specific secrets (higher priority)
+    env_prefix = f"ENV_{environment.upper()}_{file_pattern}_"
+    for var_name, value in all_env_vars.items():
+        if var_name.startswith(env_prefix):
+            key = var_name.split("_", 3)[-1]  # ENV_PROD_APP_DEBUG → DEBUG
+            merged[key] = value
+
+    # 3. All-in-one secrets (highest priority)
+    all_in_one_key = f"ENV_{environment.upper()}_{file_pattern}"
+    if all_in_one_key in all_env_vars:
+        parsed = parse_all_in_one_secret(all_env_vars[all_in_one_key], ENV_FILES_FORMAT)
+        merged.update(parsed)  # Override everything
+
+    # 4. Base all-in-one secrets (fallback)
+    base_all_in_one_key = f"ENV_{file_pattern}"
+    if base_all_in_one_key in all_env_vars:
+        parsed = parse_all_in_one_secret(all_env_vars[base_all_in_one_key], ENV_FILES_FORMAT)
+        for key, value in parsed.items():
+            if key not in merged:  # Only add if not already set
+                merged[key] = value
+
+    return merged
+
+
+def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
+    """Auto-detect and parse environment-specific secrets with priority system"""
+
+    # Get all environment variables starting with ENV_
+    all_env_vars = {k: v for k, v in os.environ.items() if k.startswith("ENV_")}
+
+    if not all_env_vars:
+        return {}
+
+    # Auto-detect file patterns
+    patterns = detect_file_patterns(all_env_vars, ENV_FILES_STRUCTURE)
+
+    # If custom patterns specified, use those instead
+    if ENV_FILES_PATTERNS and ENV_FILES_STRUCTURE != "auto":
+        patterns = [p.strip() for p in ENV_FILES_PATTERNS if p.strip()]
+
+    # File paths will be determined individually for each pattern
+
+    # Merge variables for each pattern
+    result = {}
+    for pattern in patterns:
+        merged_vars = merge_env_vars_by_priority(all_env_vars, ENVIRONMENT, pattern)
+        if merged_vars:
+            result[pattern] = merged_vars
+
+    return result
+
+
+def create_env_file(conn: Connection, file_path: str, env_vars: Dict[str, str]) -> None:
+    """Create .env file with secure permissions (0o600)"""
+
+    if not env_vars:
+        return
+
+    # Create directory if needed
+    dir_path = os.path.dirname(file_path)
+    if dir_path and dir_path != file_path:
+        conn.run(f"mkdir -p {dir_path}")
+
+    # Create content with proper escaping
+    env_content = "\n".join([f"{k}={v}" for k, v in env_vars.items()])
+
+    # Create file with heredoc pattern (secure, handles special chars)
+    conn.run(f"cat > \"{file_path}\" << 'EOF'\n{env_content}\nEOF")
+
+    # Set secure permissions
+    conn.run(f'chmod 600 "{file_path}"')
+
+
+def generate_env_files(conn: Connection) -> None:
+    """Main function to generate environment files from secrets"""
+
+    if not ENV_FILES_GENERATE:
+        return
+
+    print("🔧 Generating environment files from secrets...")
+
+    # Detect and parse environment secrets
+    env_file_data = detect_environment_secrets()
+
+    if not env_file_data:
+        print("ℹ️  No environment variables found to generate files")
+        return
+
+    # Create each environment file
+    for pattern, env_vars in env_file_data.items():
+        # Determine file path
+        file_paths = determine_file_structure(
+            ENV_FILES_STRUCTURE, [pattern], ENVIRONMENT, GIT_SUBDIR
+        )
+        file_path = file_paths.get(pattern)
+
+        if file_path:
+            print(f"📝 Creating {file_path} with {len(env_vars)} variables")
+            create_env_file(conn, file_path, env_vars)
+
+            # Also create in root if specified and not already in root
+            if ENV_FILES_CREATE_ROOT and ENV_FILES_STRUCTURE not in [
+                "flat",
+                "single",
+            ]:
+                root_path = os.path.join(GIT_SUBDIR, pattern)
+                if root_path != file_path:
+                    print(f"📝 Also creating {root_path}")
+                    create_env_file(conn, root_path, env_vars)
+
+    print("✅ Environment files generated successfully")
