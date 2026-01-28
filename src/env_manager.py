@@ -63,6 +63,10 @@ def detect_file_patterns(all_env_vars: Dict[str, str], structure: str) -> List[s
 
     patterns = set()
     for var_name in all_env_vars.keys():
+        # Exclude config variables
+        if var_name.startswith("ENV_FILES_"):
+            continue
+
         match = re.match(r"^ENV_[A-Z0-9_]*_([A-Z]+)_", var_name)
         if match:
             filename = match.group(1).lower()

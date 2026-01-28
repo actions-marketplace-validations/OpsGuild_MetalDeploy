@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        docker { 
+        docker {
             image "ghcr.io/opsguild/metaldeploy:latest"
             registryUrl "https://ghcr.io"
             registryCredentialsId "github-registry-auth"
@@ -11,6 +11,8 @@ pipeline {
 
     environment {
         GIT_AUTH_METHOD = 'token'
+        GIT_URL = "${env.GIT_URL}"
+        GIT_USER = 'hordunlarmy'
         USE_SUDO = 'true'
         DEPLOYMENT_TYPE= 'baremetal'
         ENV_FILES_GENERATE = 'true'
@@ -29,7 +31,7 @@ pipeline {
                     string(credentialsId: 'git-token',         variable: 'GIT_TOKEN'),
                     string(credentialsId: 'staging-remote-pass', variable: 'REMOTE_PASSWORD'),
                     string(credentialsId: 'staging-remote-host', variable: 'REMOTE_HOST'),
-                    
+
                     file(credentialsId: 'staging-app-env',      variable: 'ENV_APP'),
                     file(credentialsId: 'staging-atlas-env',    variable: 'ENV_ATLAS'),
                     file(credentialsId: 'staging-database-env', variable: 'ENV_DATABASE'),
