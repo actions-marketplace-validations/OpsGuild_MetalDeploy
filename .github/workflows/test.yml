@@ -27,7 +27,7 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
-          version: latest
+          version: 1.8.5
           virtualenvs-create: true
           virtualenvs-in-project: true
 
@@ -37,7 +37,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          poetry run pytest tests/ -v --cov=deploy --cov-report=xml --cov-report=html -m "not integration and not slow"
+          poetry run pytest tests/ -v --cov=src --cov=main --cov-report=xml --cov-report=html -m "not integration and not slow"
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -73,7 +73,7 @@ jobs:
 
       - name: Check Python syntax
         run: |
-          poetry run python -m py_compile deploy.py
+          poetry run python -m py_compile main.py
           echo "✅ Python syntax check passed"
 
   lint:
@@ -90,7 +90,7 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
-          version: latest
+          version: 1.8.5
           virtualenvs-create: true
           virtualenvs-in-project: true
 
