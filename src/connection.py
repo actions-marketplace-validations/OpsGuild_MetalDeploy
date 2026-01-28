@@ -1,0 +1,87 @@
+import base64
+import os
+import tempfile
+from src import config
+
+def setup_ssh_key():
+    """Setup SSH key file from environment variable (supports raw or base64 encoded)"""
+    if config.SSH_KEY:
+        try:
+            decoded_key = base64.b64decode(config.SSH_KEY).decode("utf-8")
+            if "BEGIN" in decoded_key and "PRIVATE KEY" in decoded_key:
+                key_content = decoded_key
+            else:
+                key_content = config.SSH_KEY
+        except Exception:
+            key_content = config.SSH_KEY
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".pem") as f:
+            f.write(key_content)
+            config.SSH_KEY_PATH = f.name
+        os.chmod(config.SSH_KEY_PATH, 0o600)
+
+def run_command(conn, command, force_sudo=False):
+    """
+    Helper function to run commands with optional sudo support.
+    """
+    use_sudo_for_this = config.USE_SUDO or force_sudo
+
+    if not use_sudo_for_this:
+        return conn.run(command, warn=False)
+
+    if config.REMOTE_USER == "root":
+        home_dir = "/root"
+    else:
+        home_dir = f"/home/{config.REMOTE_USER}"
+
+    escaped_command = command.replace("'", "'\"'\"'")
+
+    # Wrap command in bash that sources the profile to make functions available
+    wrapped_command = (
+        f"bash -l -c '"
+        f'export PS1="$ "; '
+        f"set +e; "
+        f"if [ -f {home_dir}/.bashrc ]; then "
+        f"  source {home_dir}/.bashrc 2>/dev/null; "
+        f"fi; "
+        f"if [ -f {home_dir}/.bash_profile ]; then "
+        f"  source {home_dir}/.bash_profile 2>/dev/null; "
+        f"fi; "
+        f"if [ -f {home_dir}/.profile ]; then "
+        f"  source {home_dir}/.profile 2>/dev/null; "
+        f"fi; "
+        f"set -e; "
+        f"{escaped_command}"
+        f"'"
+    )
+
+    if config.REMOTE_PASSWORD:
+        escaped_pwd = config.REMOTE_PASSWORD.replace("'", "'\"'\"'")
+        full_command = f"printf '%s\\n' '{escaped_pwd}' | sudo -S {wrapped_command}"
+        return conn.run(full_command, pty=False, warn=False)
+    else:
+        return conn.run(f"sudo {wrapped_command}", warn=False)
+
+def install_dependencies(conn):
+    """Install required system dependencies"""
+    deps = [
+        "git",
+        "python3-pip",
+        "python3-dev",
+        "build-essential",
+        "libssl-dev",
+        "libffi-dev",
+    ]
+    missing = []
+    for dep in deps:
+        result = conn.run(f"which {dep}", warn=True, hide=True)
+        if not result.stdout.strip():
+            missing.append(dep)
+
+    if missing:
+        print(f"======= Installing dependencies: {', '.join(missing)} =======")
+        run_command(conn, "apt-get update", force_sudo=True)
+        run_command(conn, f"apt-get install -y {' '.join(missing)}", force_sudo=True)
+        print("======= Dependencies installed =======")
+    else:
+        print("======= All dependencies already installed =======")

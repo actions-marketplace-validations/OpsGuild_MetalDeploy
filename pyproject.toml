@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "GitHub Action for deploying applications to baremetal servers via SSH"
 authors = ["OpsGuild <opsguild@example.com>"]
 readme = "README.md"
-packages = [{include = "deploy.py"}]
+packages = [{include = "src"}, {include = "main.py"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -51,7 +51,7 @@ profile = "black"
 line_length = 100
 
 [tool.coverage.run]
-source = ["deploy.py"]
+source = ["src", "main.py"]
 omit = ["tests/*", "*/test_*.py"]
 
 [tool.coverage.report]
