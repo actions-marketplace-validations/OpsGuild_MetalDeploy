@@ -18,7 +18,7 @@ class Config:
         else:
             self.GIT_URL = self.GIT_URL_ENV
 
-        self.GIT_AUTH_METHOD = os.getenv("GIT_AUTH_METHOD", "token").lower()
+        self.GIT_AUTH_METHOD = os.getenv("GIT_AUTH_METHOD", "none").lower()
         self.GIT_TOKEN = os.getenv("GIT_TOKEN", "")
         self.GIT_USER = os.getenv("GIT_USER", "").strip() or os.getenv("GITHUB_ACTOR", "")
         self.GIT_SSH_KEY = os.getenv("GIT_SSH_KEY")

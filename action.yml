@@ -10,7 +10,7 @@ inputs:
   git_auth_method:
     description: 'Git authentication method: token (HTTPS with token), ssh (SSH key), or none (public repos only)'
     required: false
-    default: 'token'
+    default: 'none'
   git_token:
     description: 'GitHub token for authentication (required if git_auth_method is token)'
     required: false
