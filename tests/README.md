@@ -1,6 +1,6 @@
 # Testing Guide
 
-This directory contains tests for the VPS Deploy Action.
+This directory contains tests for the MetalDeploy Action.
 
 ## Running Tests
 
