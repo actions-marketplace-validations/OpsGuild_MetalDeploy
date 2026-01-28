@@ -711,6 +711,7 @@ MetalDeploy includes powerful environment file generation capabilities that auto
 - ✅ **Priority System** - Environment-specific secrets override base secrets automatically
 - ✅ **All-in-One Secret Support** - Store multiple variables in single secrets
 - ✅ **Secure Handling** - Files created with `0o600` permissions, no secret logging
+- ✅ **Secrets & Variables** - Supports both GitHub Secrets (encrypted) and GitHub Variables (plaintext)
 
 ### Configuration
 
@@ -722,6 +723,14 @@ MetalDeploy includes powerful environment file generation capabilities that auto
 | `env_files_patterns` | Comma-separated patterns (`.env.app,.env.database`) | `.env.app,.env.database` |
 | `env_files_create_root` | Also create a combined `.env` file in project root | `false` |
 | `env_files_format` | Format for parsing: `auto`, `env`, `json`, `yaml` | `auto` |
+
+### How it Works
+
+1.  **Discovery**: The action scans all environment variables starting with `ENV_`. It treats GitHub Secrets and GitHub Variables exactly the same.
+2.  **Bucketing**:
+    *   If `env_files_patterns` is provided, the action **only** looks for variables matching those specific buckets (e.g., `env_files_patterns: .env.app` only processes `ENV_APP_...` variables).
+    *   If `env_files_structure` is `auto` (and patterns are default), it automatically discovers all buckets based on your variable prefixes (e.g., `ENV_REDIS_URL` automatically creates a `.env.redis` file).
+3.  **Generation**: Files are generated on the remote server with secure permissions.
 
 ### Secret Naming Convention
 
