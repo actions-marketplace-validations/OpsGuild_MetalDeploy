@@ -95,7 +95,7 @@ inputs:
   env_files_create_root:
     description: 'Also create .env files in project root'
     required: false
-    default: 'true'
+    default: 'false'
   env_files_format:
     description: 'Format for parsing all-in-one secrets: auto, env, json, yaml'
     required: false
@@ -166,7 +166,7 @@ runs:
       shell: bash
       run: |
         cd ${{ github.action_path }}
-        poetry run python deploy.py
+        poetry run python main.py
       env:
         GIT_URL: ${{ inputs.git_url }}
         GIT_AUTH_METHOD: ${{ inputs.git_auth_method }}
