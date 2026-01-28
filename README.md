@@ -24,6 +24,7 @@ A comprehensive GitHub Action for deploying applications to baremetal servers vi
 - [Git Authentication](docs/git-auth.md) - Token, SSH, and No-Auth methods
 - [Environment File Generation](docs/env-generation.md) - Dynamic `.env` creation from secrets
 - [Jenkins Integration](docs/jenkins.md) - Using MetalDeploy outside of GitHub Actions
+- [Manual CLI Usage](docs/manual-usage.md) - Running MetalDeploy directly from your machine
 - [Installation & Requirements](docs/installation.md) - What gets installed on your server
 
 ## Default Values
@@ -38,9 +39,21 @@ MetalDeploy provides smart defaults to minimize configuration:
 - **`remote_user`**: Defaults to `root` - root user on remote server
 - **`registry_type`**: Defaults to `ghcr` - GitHub Container Registry
 
-## Usage
+## Quick Start
 
-### Basic Example
+### For Local CLI Usage
+
+Install MetalDeploy as a global command:
+```bash
+curl -sSL https://raw.githubusercontent.com/OpsGuild/MetalDeploy/main/scripts/install.sh | bash
+```
+
+Then use it anywhere:
+```bash
+metaldeploy --host 1.2.3.4 --user root --ssh-key ~/.ssh/id_rsa --type docker
+```
+
+### For GitHub Actions
 
 ```yaml
 - name: Deploy with MetalDeploy
@@ -68,6 +81,24 @@ MetalDeploy provides smart defaults to minimize configuration:
     registry_password: ${{ secrets.DOCKERHUB_PASSWORD }}
 ```
 
+### For Jenkins
+
+```groovy
+pipeline {
+    agent { docker { image "ghcr.io/opsguild/metal-deploy:latest" } }
+    stages {
+        stage('Deploy') {
+            steps {
+                script {
+                    def paramEnv = params.collect { k, v -> "${k}=\${v}" }
+                    withEnv(paramEnv) { sh "python main.py" }
+                }
+            }
+        }
+    }
+}
+```
+
 ## Inputs & Outputs
 
 For a full list of inputs and outputs, please see the [Action Metadata](action.yml).
@@ -80,6 +111,7 @@ Comprehensive documentation can be found in the [docs/](docs/) directory:
 - [Git Authentication](docs/git-auth.md): How to configure repository access.
 - [Environment File Generation](docs/env-generation.md): Securely manage your application settings.
 - [Jenkins Integration](docs/jenkins.md): How to use this action in a Jenkins pipeline.
+- [Manual CLI Usage](docs/manual-usage.md): Guide for running the tool manually.
 - [Installation & Requirements](docs/installation.md): Details about server setup and dependencies.
 
 ## Development & Testing
