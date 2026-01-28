@@ -128,7 +128,7 @@ jobs:
 | `env_files_structure` | File structure: `single`, `flat`, `nested`, `auto`, `custom` | ❌ | `auto` |
 | `env_files_path` | Custom path for environment files (works with all structures) | ❌ | - |
 | `env_files_patterns` | Comma-separated patterns (`.env.app,.env.database`) | ❌ | `.env.app,.env.database` |
-| `env_files_create_root` | Also create .env files in project root | ❌ | `true` |
+| `env_files_create_root` | Also create a combined `.env` file in project root | ❌ | `false` |
 | `env_files_format` | Format for parsing all-in-one secrets: `auto`, `env`, `json`, `yaml` | ❌ | `auto` |
 
 ## Outputs
@@ -720,7 +720,7 @@ MetalDeploy includes powerful environment file generation capabilities that auto
 | `env_files_structure` | File structure: `single`, `flat`, `nested`, `auto`, `custom` | `auto` |
 | `env_files_path` | Custom path (when `structure=custom`) | - |
 | `env_files_patterns` | Comma-separated patterns (`.env.app,.env.database`) | `.env.app,.env.database` |
-| `env_files_create_root` | Also create files in project root | `true` |
+| `env_files_create_root` | Also create a combined `.env` file in project root | `false` |
 | `env_files_format` | Format for parsing: `auto`, `env`, `json`, `yaml` | `auto` |
 
 ### Secret Naming Convention
@@ -805,10 +805,13 @@ SECRET_KEY=dev-secret
 - `SECRET_KEY=prod-secret` (from ENV_PROD_APP_SECRET_KEY)
 - `DATABASE_URL=...` (from ENV_PROD_APP)
 
+**With `env_files_create_root: true`:**
+Also creates a single `/project/.env` file containing ALL variables merged together.
+
 **With custom path:**
 ```yaml
 env_files_structure: 'nested'
-env_files_path: 'secrets'  # Creates secrets/prod/ instead of .envs/prod/
+env_files_path: 'secrets'  # Will use secrets/prod/
 ```
 **Result**: Creates `secrets/prod/.env.app` with merged variables.
 
@@ -850,6 +853,20 @@ project/
 #### Nested Mode
 ```
 project/
+├── .envs/
+│   ├── dev/
+│   │   ├── .env.app
+│   │   └── .env.database
+│   └── prod/
+│       ├── .env.app
+│       └── .env.database
+└── app.py
+```
+
+**Nested Mode with `env_files_create_root: true`:**
+```
+project/
+├── .env          # Combined file (Mega-File) with ALL variables
 ├── .envs/
 │   ├── dev/
 │   │   ├── .env.app
