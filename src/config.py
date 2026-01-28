@@ -2,46 +2,52 @@ import os
 
 
 class Config:
-    def __init__(self):
-        self.load()
+    def __init__(self, overrides=None):
+        self.load(overrides)
 
-    def load(self):
+    def load(self, overrides=None):
+        overrides = overrides or {}
+
         # Helper to get Boolean environment variables
         def get_bool_env(name, default="false"):
-            return os.getenv(name, default).lower() == "true"
+            val = overrides.get(name) or os.getenv(name, default)
+            return str(val).lower() == "true"
+
+        def get_env(name, default=None):
+            return overrides.get(name) or os.getenv(name, default)
 
         # Configuration from environment variables
-        self.GIT_URL_ENV = os.getenv("GIT_URL", "").strip()
-        if not self.GIT_URL_ENV and os.getenv("GITHUB_REPOSITORY"):
-            github_repo = os.getenv("GITHUB_REPOSITORY")
+        self.GIT_URL_ENV = get_env("GIT_URL", "").strip()
+        if not self.GIT_URL_ENV and get_env("GITHUB_REPOSITORY"):
+            github_repo = get_env("GITHUB_REPOSITORY")
             self.GIT_URL = f"https://github.com/{github_repo}.git"
         else:
             self.GIT_URL = self.GIT_URL_ENV
 
-        self.GIT_AUTH_METHOD = os.getenv("GIT_AUTH_METHOD", "token").lower()
-        self.GIT_TOKEN = os.getenv("GIT_TOKEN", "")
-        self.GIT_USER = os.getenv("GIT_USER", "").strip() or os.getenv("GITHUB_ACTOR", "")
-        self.GIT_SSH_KEY = os.getenv("GIT_SSH_KEY")
+        self.GIT_AUTH_METHOD = get_env("GIT_AUTH_METHOD", "none").lower()
+        self.GIT_TOKEN = get_env("GIT_TOKEN", "")
+        self.GIT_USER = get_env("GIT_USER", "").strip() or get_env("GITHUB_ACTOR", "")
+        self.GIT_SSH_KEY = get_env("GIT_SSH_KEY")
 
-        self.DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "baremetal").lower()
-        self.ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
-        self.REMOTE_USER = os.getenv("REMOTE_USER", "root")
-        self.REMOTE_HOST = os.getenv("REMOTE_HOST", "127.0.0.1")
+        self.DEPLOYMENT_TYPE = get_env("DEPLOYMENT_TYPE", "baremetal").lower()
+        self.ENVIRONMENT = get_env("ENVIRONMENT", "dev")
+        self.REMOTE_USER = get_env("REMOTE_USER", "root")
+        self.REMOTE_HOST = get_env("REMOTE_HOST", "127.0.0.1")
 
-        if os.getenv("REMOTE_DIR"):
-            self.REMOTE_DIR = os.getenv("REMOTE_DIR")
+        if get_env("REMOTE_DIR"):
+            self.REMOTE_DIR = get_env("REMOTE_DIR")
         elif self.REMOTE_USER == "root":
             self.REMOTE_DIR = "/root"
         else:
             self.REMOTE_DIR = f"/home/{self.REMOTE_USER}"
 
-        self.SSH_KEY = os.getenv("SSH_KEY")
-        self.REMOTE_PASSWORD = os.getenv("REMOTE_PASSWORD")
-        self.REGISTRY_TYPE = os.getenv("REGISTRY_TYPE", "ghcr")
-        self.PROFILE = os.getenv("PROFILE")
-        self.DEPLOY_COMMAND = os.getenv("DEPLOY_COMMAND")
-        self.K8S_MANIFEST_PATH = os.getenv("K8S_MANIFEST_PATH")
-        self.K8S_NAMESPACE = os.getenv("K8S_NAMESPACE", "default")
+        self.SSH_KEY = get_env("SSH_KEY")
+        self.REMOTE_PASSWORD = get_env("REMOTE_PASSWORD")
+        self.REGISTRY_TYPE = get_env("REGISTRY_TYPE", "ghcr")
+        self.PROFILE = get_env("PROFILE")
+        self.DEPLOY_COMMAND = get_env("DEPLOY_COMMAND")
+        self.K8S_MANIFEST_PATH = get_env("K8S_MANIFEST_PATH")
+        self.K8S_NAMESPACE = get_env("K8S_NAMESPACE", "default")
         self.USE_SUDO = get_bool_env("USE_SUDO")
 
         self.PROJECT_NAME = self.GIT_URL.split("/")[-1].split(".")[0] if self.GIT_URL else ""
