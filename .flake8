@@ -1,4 +1,4 @@
 [flake8]
 max-line-length = 100
 ignore = E501, W503, E203
-exclude = .git, __pycache__, *.pyc, .pytest_cache, .venv, venv
+exclude = .git, __pycache__, *.pyc, .pytest_cache, .venv, venv, generated_envs, generated_envs_2, tests/generated_envs, tests/generated_envs_2, tests/integration/generated_envs, tests/integration/generated_envs_2

@@ -34,7 +34,9 @@ htmlcov/
 .tox/
 .hypothesis/
 generated_envs/
+generated_envs_2/
 **/generated_envs/
+**/generated_envs_2/
 
 # IDEs
 .vscode/

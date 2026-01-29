@@ -29,20 +29,20 @@ inputs:
     required: false
     default: 'dev'
   remote_user:
-    description: 'SSH remote user'
+    description: 'SSH remote user (comma-separated if multiple hosts, supports reuse/distribution)'
     required: false
     default: 'root'
   remote_host:
-    description: 'SSH remote host IP or domain'
+    description: 'SSH remote host IP or domain (comma-separated for multiple hosts)'
     required: true
   remote_dir:
     description: 'Remote directory path for deployment'
     required: false
   ssh_key:
-    description: 'SSH private key for authentication (base64 encoded or raw)'
+    description: 'SSH private key for authentication (base64 encoded or raw, comma-separated if multiple keys needed)'
     required: false
   remote_password:
-    description: 'SSH password for authentication (if not using SSH key)'
+    description: 'SSH password for authentication (if not using SSH key, comma-separated if multiple passwords needed)'
     required: false
   registry_type:
     description: 'Docker registry type (ghcr, dockerhub, ecr)'

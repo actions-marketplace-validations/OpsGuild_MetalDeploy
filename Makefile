@@ -40,6 +40,10 @@ clean:
 	rm -rf __pycache__/
 	find . -type d -name __pycache__ -exec rm -r {} +
 	find . -type f -name "*.pyc" -delete
+	rm -rf tests/generated_envs
+	rm -rf tests/generated_envs_2
+	rm -rf tests/integration/generated_envs
+	rm -rf tests/integration/generated_envs_2
 
 # Validate action.yml
 validate:

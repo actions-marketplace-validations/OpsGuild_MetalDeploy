@@ -33,7 +33,7 @@ def ssh_container():
 
     # Connection parameters
     host = "127.0.0.1"
-    port = 2222
+    ports = [2222, 2223]
     user = "root"
     password = "root"
 
@@ -43,25 +43,27 @@ def ssh_container():
 
     for i in range(retries):
         try:
-            # Check if port is listening
-            with socket.create_connection((host, port), timeout=2):
-                pass
+            # Check if ports are listening
+            for port in ports:
+                with socket.create_connection((host, port), timeout=2):
+                    pass
 
-            # Verify SSH actually works
-            conn = Connection(
-                host=host,
-                port=port,
-                user=user,
-                connect_kwargs={
-                    "password": password,
-                    "look_for_keys": False,
-                    "allow_agent": False,
-                },
-            )
-            conn.run("echo 'SSH Ready'", hide=True)
-            conn.close()
+                # Verify SSH actually works
+                conn = Connection(
+                    host=host,
+                    port=port,
+                    user=user,
+                    connect_kwargs={
+                        "password": password,
+                        "look_for_keys": False,
+                        "allow_agent": False,
+                    },
+                )
+                conn.run("echo 'SSH Ready'", hide=True)
+                conn.close()
+
             ready = True
-            print("✅ SSH Container Ready")
+            print("✅ SSH Containers Ready")
             break
         except Exception as e:
             if i < retries - 1:
@@ -72,10 +74,11 @@ def ssh_container():
     if not ready:
         # Capture logs before failing
         logs = subprocess.run(
-            ["docker", "logs", "tests-ssh-server-1"],
+            ["docker", "compose", "-f", docker_compose_file, "logs"],
             capture_output=True,
             text=True,
             stdin=subprocess.DEVNULL,
+            cwd=tests_dir,
         )
         print(f"Container logs:\n{logs.stdout}")
         subprocess.run(
@@ -84,9 +87,15 @@ def ssh_container():
             stdin=subprocess.DEVNULL,
             cwd=tests_dir,
         )
-        pytest.fail("Could not connect to SSH container after 30 retries")
+        pytest.fail("Could not connect to SSH containers after 30 retries")
 
-    yield {"host": host, "port": port, "user": user, "password": password}
+    yield {
+        "host": host,
+        "port": ports[0],
+        "second_port": ports[1],
+        "user": user,
+        "password": password,
+    }
 
     # Teardown
     print("🛑 Stopping SSH container...")

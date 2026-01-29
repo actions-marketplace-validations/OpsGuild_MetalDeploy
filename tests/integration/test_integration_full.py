@@ -74,6 +74,57 @@ def test_artifact_copying(integration_conn, clean_remote_dir, monkeypatch, tmp_p
     assert "console.log('hello');" in content
 
 
+@pytest.mark.integration
+def test_multi_host_execution(ssh_container, clean_remote_dir, monkeypatch, capsys):
+    """Test deploying to multiple hosts in parallel."""
+    from fabric import Connection
+
+    from src.orchestrator import handle_connection
+
+    # 1. Setup Config
+    host1 = f"{ssh_container['host']}:{ssh_container['port']}"
+    host2 = f"{ssh_container['host']}:{ssh_container['second_port']}"
+
+    monkeypatch.setenv("REMOTE_HOST", f"{host1}, {host2}")
+    monkeypatch.setenv("REMOTE_USER", ssh_container["user"])
+    monkeypatch.setenv("REMOTE_PASSWORD", ssh_container["password"])
+    monkeypatch.setenv("ENV_FILES_GENERATE", "false")  # Simplify
+    monkeypatch.setenv("DEPLOYMENT_TYPE", "baremetal")
+    monkeypatch.setenv("DEPLOY_COMMAND", "echo deployment_simulated")
+
+    # 2. Run
+    # We need to handle the fact that 'clean_remote_dir' only cleans the first one usually?
+    # Actually clean_remote_dir fixture uses 'integration_conn' which uses port 2222.
+    # So host2 might be dirty or not exist.
+    # But code does 'mkdir -p REMOTE_DIR'.
+    # We'll rely on unique dir names to avoid conflict if dirty.
+
+    target_dir = "/opt/metaldeploy_tests/multi_host_test"
+    monkeypatch.setenv("REMOTE_DIR", target_dir)
+    monkeypatch.setenv("GIT_DIR", f"{target_dir}/repo")
+
+    # Reload config in main process so it picks up the env vars
+    config.load()
+
+    # Run orchestration
+    handle_connection()
+
+    # 3. Verify on Host 1
+    conn_args = {
+        "password": ssh_container["password"],
+        "look_for_keys": False,
+        "allow_agent": False,
+    }
+    conn1 = Connection(host=host1, user=ssh_container["user"], connect_kwargs=conn_args)
+    res1 = conn1.run(f"test -d {target_dir}", warn=True)
+    assert res1.ok
+
+    # 4. Verify on Host 2
+    conn2 = Connection(host=host2, user=ssh_container["user"], connect_kwargs=conn_args)
+    res2 = conn2.run(f"test -d {target_dir}", warn=True)
+    assert res2.ok
+
+
 # ------------------------------------------------------------------------------
 # HYPER-EXHAUSTIVE PERMUTATION TESTS
 # ------------------------------------------------------------------------------
