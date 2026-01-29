@@ -51,11 +51,14 @@ class Config:
         self.USE_SUDO = get_bool_env("USE_SUDO")
 
         self.PROJECT_NAME = self.GIT_URL.split("/")[-1].split(".")[0] if self.GIT_URL else ""
-        self.GIT_DIR = (
-            os.path.join(self.REMOTE_DIR, self.PROJECT_NAME)
-            if self.PROJECT_NAME
-            else self.REMOTE_DIR
-        )
+        if self.PROJECT_NAME and self.REMOTE_DIR.rstrip("/").split("/")[-1] == self.PROJECT_NAME:
+            self.GIT_DIR = self.REMOTE_DIR
+        else:
+            self.GIT_DIR = (
+                os.path.join(self.REMOTE_DIR, self.PROJECT_NAME)
+                if self.PROJECT_NAME
+                else self.REMOTE_DIR
+            )
         self.GIT_SUBDIR = os.path.join(self.GIT_DIR, "")
 
         # Environment file generation configuration
