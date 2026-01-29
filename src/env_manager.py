@@ -71,17 +71,41 @@ def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> D
             pass
 
     if format_hint == "env":
+        # Remove comment lines first to clean up the block
+        lines = secret_content.splitlines()
+        clean_content = "\n".join([line for line in lines if not line.strip().startswith("#")])
+
         env_vars = {}
-        # Handle both physical newlines and literal \n escapes
-        lines = re.split(r"\n|\\n", secret_content)
-        for line in lines:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                try:
-                    key, value = line.split("=", 1)
-                    env_vars[key.strip()] = value.strip()
-                except ValueError:
-                    continue
+        # Regex to find all KEY= pairs.
+        # It looks for valid keys at the start of the string or after a delimiter (space, comma, newline)
+        key_matches = list(re.finditer(r"(?:^|[\s,])([A-Z0-9_]+)=", clean_content))
+
+        if not key_matches:
+            # If no KEY= patterns found, return empty
+            return {}
+
+        for i in range(len(key_matches)):
+            key = key_matches[i].group(1)
+            # Value starts after the '='
+            val_start = key_matches[i].end()
+            # Value ends where the next key starts, or at the end of the content
+            val_end = key_matches[i + 1].start() if i + 1 < len(key_matches) else len(clean_content)
+
+            raw_value = clean_content[val_start:val_end].strip()
+
+            # Post-process the value:
+            # 1. Strip trailing delimiters (commas/spaces)
+            # 2. Handle quoting: if starts and ends with ", strip them
+            value = raw_value.rstrip(" ,")
+
+            if (value.startswith('"') and value.endswith('"')) or (
+                value.startswith("'") and value.endswith("'")
+            ):
+                # Strip outside quotes but keep internal content (including newlines/escapes)
+                value = value[1:-1]
+
+            env_vars[key] = value
+
         return env_vars
 
     return {}
