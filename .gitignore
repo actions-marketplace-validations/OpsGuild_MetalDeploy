@@ -30,6 +30,7 @@ ENV/
 htmlcov/
 .coverage
 .coverage.*
+coverage.xml
 .pytest_cache/
 .tox/
 .hypothesis/
@@ -37,6 +38,7 @@ generated_envs/
 generated_envs_2/
 **/generated_envs/
 **/generated_envs_2/
+**/generated_envs_*/
 
 # IDEs
 .vscode/
