@@ -351,15 +351,15 @@ def merge_env_vars_by_priority(
             merged[key] = v
 
     # D. Env Specific Blob (e.g. ENV_PROD_APP)
-    env_blob_key = f"ENV_{env_upper}_{file_base}"
-    if env_blob_key in all_env_vars:
-        parsed = parse_all_in_one_secret(all_env_vars[env_blob_key], config.ENV_FILES_FORMAT)
+    comp_env_key = f"ENV_{env_upper}_{file_base}"
+    if comp_env_key in all_env_vars:
+        parsed = parse_all_in_one_secret(all_env_vars[comp_env_key], config.ENV_FILES_FORMAT)
         if parsed:
             for pk, pv in parsed.items():
                 p_key = pk[len(f"{file_base}_") :] if pk.startswith(f"{file_base}_") else pk
                 merged[p_key] = pv
-        elif all_env_vars[env_blob_key].strip():
-            merged[file_base] = all_env_vars[env_blob_key]
+        elif all_env_vars[comp_env_key].strip():
+            merged[file_base] = all_env_vars[comp_env_key]
 
     return merged
 

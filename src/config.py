@@ -14,7 +14,16 @@ class Config:
             return str(val).lower() == "true"
 
         def get_env(name, default=None):
-            return overrides.get(name) or os.getenv(name, default)
+            # 1. Check overrides
+            val = overrides.get(name)
+            if val is not None:
+                return val
+            # 2. Check direct environment
+            val = os.getenv(name)
+            if val is not None:
+                return val
+            # 3. Check GitHub Action Input (INPUT_NAME)
+            return os.getenv(f"INPUT_{name.upper()}") or default
 
         # Configuration from environment variables
         self.GIT_URL_ENV = get_env("GIT_URL", "").strip()

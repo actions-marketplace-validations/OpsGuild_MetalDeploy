@@ -169,36 +169,3 @@ runs:
       run: |
         cd ${{ github.action_path }}
         poetry run python main.py
-      env:
-        GIT_URL: ${{ inputs.git_url }}
-        GIT_AUTH_METHOD: ${{ inputs.git_auth_method }}
-        GIT_TOKEN: ${{ inputs.git_token }}
-        GIT_USER: ${{ inputs.git_user }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_ACTOR: ${{ github.actor }}
-        GIT_SSH_KEY: ${{ inputs.git_ssh_key }}
-        DEPLOYMENT_TYPE: ${{ inputs.deployment_type }}
-        ENVIRONMENT: ${{ inputs.environment }}
-        REMOTE_USER: ${{ inputs.remote_user }}
-        REMOTE_HOST: ${{ inputs.remote_host }}
-        REMOTE_DIR: ${{ inputs.remote_dir }}
-        SSH_KEY: ${{ inputs.ssh_key }}
-        REMOTE_PASSWORD: ${{ inputs.remote_password }}
-        REGISTRY_TYPE: ${{ inputs.registry_type }}
-        REGISTRY_USERNAME: ${{ inputs.registry_username }}
-        REGISTRY_PASSWORD: ${{ inputs.registry_password }}
-        AWS_REGION: ${{ inputs.aws_region }}
-        AWS_ACCOUNT_ID: ${{ inputs.aws_account_id }}
-        PROFILE: ${{ inputs.profile }}
-        DEPLOY_COMMAND: ${{ inputs.deploy_command }}
-        K8S_MANIFEST_PATH: ${{ inputs.k8s_manifest_path }}
-        K8S_NAMESPACE: ${{ inputs.k8s_namespace }}
-        USE_SUDO: ${{ inputs.use_sudo }}
-        ENV_FILES_GENERATE: ${{ inputs.env_files_generate }}
-        ENV_FILES_STRUCTURE: ${{ inputs.env_files_structure }}
-        ENV_FILES_PATH: ${{ inputs.env_files_path }}
-        ENV_FILES_PATTERNS: ${{ inputs.env_files_patterns }}
-        ENV_FILES_CREATE_ROOT: ${{ inputs.env_files_create_root }}
-        ENV_FILES_FORMAT: ${{ inputs.env_files_format }}
-        COPY_ARTIFACTS: ${{ inputs.copy_artifacts }}
-        GITHUB_WORKSPACE: ${{ github.workspace }}
