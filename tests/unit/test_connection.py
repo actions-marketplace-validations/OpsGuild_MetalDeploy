@@ -48,6 +48,15 @@ def test_run_command_sudo_wrapping(mock_conn, monkeypatch):
     assert "source /home/deploy/.bashrc" in call_args
 
 
+def test_run_command_no_profile(mock_conn, monkeypatch):
+    monkeypatch.setattr(config, "USE_SUDO", True)
+    run_command(mock_conn, "simple-cmd", use_shell_profile=False)
+
+    call_args = mock_conn.run.call_args[0][0]
+    assert call_args == "sudo simple-cmd"
+    assert "bash -l -c" not in call_args
+
+
 def test_run_command_password_sudo(mock_conn, monkeypatch):
     monkeypatch.setattr(config, "USE_SUDO", True)
     monkeypatch.setattr(config, "REMOTE_PASSWORD", "mypass")
