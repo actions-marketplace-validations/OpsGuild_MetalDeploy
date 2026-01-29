@@ -8,7 +8,8 @@ MetalDeploy includes powerful environment file generation capabilities that auto
 - ✅ **Flexible File Structures** - Single `.env` file, flat `.env.*` files, or nested `.envs/{environment}/` organization
 - ✅ **Priority System** - Environment-specific secrets override base secrets automatically
 - ✅ **All-in-One Secret Support** - Store multiple variables in single secrets
-- ✅ **Secure Handling** - Files created with `0o600` permissions, no secret logging
+- ✅ **Global Literal Blob** - Support for a literal `ENV` secret for non-prefixed global dumps
+- ✅ **Secure Handling** - Files created with `0o604` permissions, no secret logging
 - ✅ **Secrets & Variables** - Supports both GitHub Secrets (encrypted) and GitHub Variables (plaintext)
 
 ## Configuration
@@ -18,19 +19,30 @@ MetalDeploy includes powerful environment file generation capabilities that auto
 | `env_files_generate` | Enable environment file generation | `false` |
 | `env_files_structure` | File structure: `single`, `flat`, `nested`, `auto`, `custom` | `auto` |
 | `env_files_path` | Custom path (when `structure=custom`) | - |
-| `env_files_patterns` | Comma-separated patterns (`.env.app,.env.database`) | `.env.app,.env.database` |
+| `env_files_patterns` | Comma-separated patterns (`.env.app,.env.database`) | - |
 | `env_files_create_root` | Also create a combined `.env` file in project root | `false` |
 | `env_files_format` | Format for parsing: `auto`, `env`, `json`, `yaml` | `auto` |
 
 ## How it Works
 
-1. **Discovery**: The action scans all environment variables starting with `ENV_`. It treats GitHub Secrets and GitHub Variables exactly the same.
+1. **Discovery**: The action scans environment variables starting with `ENV_` or a literal `ENV` secret.
 2. **Bucketing**:
-    - If `env_files_patterns` is provided, the action **only** looks for variables matching those specific buckets (e.g., `env_files_patterns: .env.app` only processes `ENV_APP_...` variables).
-    - If `env_files_structure` is `auto` (and patterns are default), it automatically discovers all buckets based on your variable prefixes (e.g., `ENV_REDIS_URL` automatically creates a `.env.redis` file).
+    - **Literal `ENV`**: Treated as a non-prefixed global blob. Its contents go directly into the `.env` file without any modifications.
+    - **`ENV_COMPONENT_...`**: Treated as part of a specific component (e.g., `ENV_APP_...` goes to `.env.app`).
+    - **`ENV_ENVIRONMENT_...`**: Automatically identifies prefixes matching common environments (`PROD`, `STAGING`, `DEV`, `TEST`) **plus** your current `environment` input.
 3. **Generation**: Files are generated on the remote server with secure permissions.
 
 ## Secret Naming Convention
+
+### Literal Global Blob (No Prefix)
+If you want to dump a list of variables without any prefixing or component logic, use the literal secret name `ENV`.
+
+```bash
+# GitHub Secret: ENV
+PORT=8080
+DEBUG=true
+```
+**Result**: `.env` contains `PORT=8080` and `DEBUG=true`.
 
 ### Individual Variables
 
@@ -41,6 +53,7 @@ ENV_APP_SECRET_KEY=base-key
 ENV_DATABASE_HOST=localhost
 
 # Environment-specific (higher priority)
+# If environment input is 'prod', this will override base values
 ENV_PROD_APP_SECRET_KEY=prod-secret
 ENV_PROD_DATABASE_HOST=prod-host
 ```
@@ -62,121 +75,38 @@ SECRET_KEY=dev-secret
 "
 ```
 
+## Priority System
+
+The priority system ensures proper variable overriding (last one wins):
+
+1. **Literal `ENV`** (Lowest priority - Base Layer)
+2. **Base Component secrets** (e.g., `ENV_APP_...`)
+3. **Base All-in-one secrets** (e.g., `ENV_APP="..."`)
+4. **Env-specific Component secrets** (e.g., `ENV_PROD_APP_...`)
+5. **Env-specific All-in-one secrets** (Highest priority - `ENV_PROD_APP="..."`)
+
 ## Usage Examples
 
-### Example 1: Single .env File
+### Example 1: Custom Environment Names
+MetalDeploy automatically supports your custom environment names for prefixes.
 
 ```yaml
-# GitHub Secrets:
-# ENV_APP_DEBUG=false
-# ENV_APP_SECRET_KEY=abc123
-# ENV_DATABASE_HOST=localhost
+- uses: ./
+  with:
+    env_files_generate: 'true'
+    environment: 'qa' # Custom environment name
+```
+**Secrets**:
+- `ENV_APP_PORT=8080` (Base)
+- `ENV_QA_APP_PORT=9090` (Overrides base because environment is 'qa')
 
+**Result**: `.env.app` will have `PORT=9090`.
+
+### Example 2: Single Mode
+```yaml
 - uses: ./
   with:
     env_files_generate: 'true'
     env_files_structure: 'single'
-    environment: 'prod'
 ```
-
-**Result**: Creates `/project/.env` with all variables merged.
-
-### Example 2: Flat Mode with Individual Secrets
-
-```yaml
-# GitHub Secrets:
-# ENV_APP_DEBUG=false
-# ENV_APP_SECRET_KEY=abc123
-# ENV_DATABASE_HOST=localhost
-# ENV_REDIS_URL=redis://localhost:6379
-
-- uses: ./
-  with:
-    env_files_generate: 'true'
-    env_files_structure: 'flat'
-    env_files_patterns: '.env.app,.env.database,.env.redis'
-    environment: 'prod'
-```
-
-**Result**: Creates `.env.app`, `.env.database`, and `.env.redis` in project root. Use `env_files_path` to override base directory.
-
-### Example 3: Nested Mode with Priority System
-
-```yaml
-# GitHub Secrets:
-# ENV_APP_DEBUG=true
-# ENV_PROD_APP_SECRET_KEY=prod-secret
-# ENV_PROD_APP="DEBUG=false\nDATABASE_URL=postgresql://..."
-
-- uses: ./
-  with:
-    env_files_generate: 'true'
-    env_files_structure: 'nested'
-    environment: 'prod'
-```
-
-**Result**: Creates `.envs/prod/.env.app` with merged variables:
-- `DEBUG=false` (from ENV_PROD_APP)
-- `SECRET_KEY=prod-secret` (from ENV_PROD_APP_SECRET_KEY)
-- `DATABASE_URL=...` (from ENV_PROD_APP)
-
-**With `env_files_create_root: true`:**
-Also creates a single `/project/.env` file containing ALL variables merged together.
-
-## File Structure Examples
-
-### Single Mode
-```
-project/
-├── .env          # All variables in one file
-├── app.py
-└── requirements.txt
-```
-
-### Flat Mode
-```
-project/
-├── .env.app       # APP_* variables
-├── .env.database  # DATABASE_* variables
-├── .env.redis     # REDIS_* variables
-└── app.py
-```
-
-### Nested Mode
-```
-project/
-├── .envs/
-│   ├── dev/
-│   │   ├── .env.app
-│   │   └── .env.database
-│   └── prod/
-│       ├── .env.app
-│       └── .env.database
-└── app.py
-```
-
-## Priority System
-
-The priority system ensures proper variable overriding:
-
-1. **Base secrets** (lowest priority):
-   ```
-   ENV_APP_DEBUG=false
-   ENV_DATABASE_HOST=localhost
-   ```
-
-2. **Environment-specific secrets** (higher priority):
-   ```
-   ENV_PROD_APP_SECRET_KEY=prod-secret
-   ENV_PROD_DATABASE_HOST=prod-host
-   ```
-
-3. **All-in-one environment-specific** (highest priority):
-   ```
-   ENV_PROD_APP="DEBUG=false\nSECRET_KEY=prod-override"
-   ```
-
-4. **All-in-one base** (fallback):
-   ```
-   ENV_APP="DEBUG=true\nVERSION=1.0"
-   ```
+**Result**: Creates `/project/.env` with all variables merged. Component variables are prefixed (e.g., `APP_PORT`, `DB_HOST`) to prevent collisions, while literal `ENV` variables remain un-prefixed.

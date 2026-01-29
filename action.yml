@@ -89,9 +89,8 @@ inputs:
     description: 'Custom path for environment files (when structure=custom)'
     required: false
   env_files_patterns:
-    description: 'Comma-separated list of .env file patterns (e.g., .env.app,.env.database)'
+    description: 'Comma-separated list of .env file patterns (e.g., .env.app,.env.database). Only used if env_files_structure is NOT set to "auto".'
     required: false
-    default: '.env.app,.env.database'
   env_files_create_root:
     description: 'Also create .env files in project root'
     required: false
