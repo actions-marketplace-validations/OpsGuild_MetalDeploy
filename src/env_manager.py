@@ -373,7 +373,8 @@ def create_env_file(conn, file_path: str, env_vars: Dict[str, str]) -> None:
         return
     dir_path = os.path.dirname(file_path)
     if dir_path and dir_path != file_path:
-        conn.run(f"mkdir -p {dir_path} && chmod 755 {dir_path}")
+        # Only mkdir, skip chmod on directory to avoid permission errors if it exists/owned by others
+        conn.run(f"mkdir -p {dir_path}")
     env_content = "\n".join([f"{k}={v}" for k, v in env_vars.items()])
     conn.run(f"cat > \"{file_path}\" << 'EOF'\n{env_content}\nEOF")
     conn.run(f'chmod 644 "{file_path}"')
