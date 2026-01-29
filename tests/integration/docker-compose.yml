@@ -1,0 +1,11 @@
+services:
+  ssh-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-ssh
+    ports:
+      - "2222:22"
+    volumes:
+      - ../:/opt/metaldeploy_source
+      - ./generated_envs:/opt/metaldeploy_tests
+    restart: always
