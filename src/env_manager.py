@@ -325,46 +325,56 @@ def merge_env_vars_by_priority(
 def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
     """Auto-detect and parse environment-specific secrets with priority system"""
     # 1. Parse Blobs (base layer)
-    # This supports env_blob: ${{ toJSON(secrets) }}
+    # This supports env_blob: ${{ toJSON(secrets) }} or ENV: <raw_block>
     blob_content = os.environ.get("ENV") or os.environ.get("ENV_BLOB")
     working_vars = {}
     special_global_base = {}
 
     if blob_content:
-        parsed_blob = parse_all_in_one_secret(blob_content, config.ENV_FILES_FORMAT)
-        if parsed_blob:
-            # If the blob content ITSELF is a dictionary (e.g. JSON/YAML)
-            for k, v in parsed_blob.items():
-                if k == "ENV":
-                    # This is the literal ENV secret inside a bulk blob
-                    global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
-                    if global_parsed:
-                        special_global_base.update(global_parsed)
-                elif k.startswith("ENV_"):
-                    # This is a structured secret (e.g. ENV_APP_...)
-                    working_vars[k] = v
-                # ALL OTHER KEYS are ignored (strictly no global fallout)
+        # Check if the blob content itself is JSON/YAML
+        raw_processed = blob_content.replace("\\n", "\n").strip()
+        is_json_or_yaml = (raw_processed.startswith("{") and raw_processed.endswith("}")) or (
+            raw_processed.startswith("[") and raw_processed.endswith("]")
+        )
 
-    # 2. Overwrite with real environment variables (higher priority)
+        parsed_blob = parse_all_in_one_secret(blob_content, config.ENV_FILES_FORMAT)
+
+        if parsed_blob:
+            if is_json_or_yaml:
+                # Bulk JSON/YAML blob (from toJSON(secrets))
+                for k, v in parsed_blob.items():
+                    if k == "ENV":
+                        # This is the literal ENV secret inside a bulk blob
+                        global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
+                        if global_parsed:
+                            special_global_base.update(global_parsed)
+                            print(f"DEBUG: Found {len(global_parsed)} keys inside nested 'ENV' key")
+                    elif k.startswith("ENV_"):
+                        # This is a structured secret (e.g. ENV_APP_...)
+                        working_vars[k] = v
+                    # OTHER KEYS ARE IGNORED (strictly no global fallout)
+            else:
+                # Direct raw block of variables (e.g. ENV: <multi-line text>)
+                # Everything in a raw block goes to the global base
+                special_global_base.update(parsed_blob)
+                print(f"DEBUG: Found {len(parsed_blob)} keys in direct raw block")
+
+    # 2. Add real environment variables (higher priority)
     # This handles individual secrets mapped in the workflow 'env:' block
     for k, v in os.environ.items():
         if k.startswith("ENV_") and not k.startswith("ENV_FILES_"):
             working_vars[k] = v
-        elif k == "ENV" or k == "ENV_BLOB":
-            # If ENV is passed directly as a string (not in a bulk blob)
-            # though usually it comes through the blob logic above
-            global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
-            if global_parsed:
-                # If v was a JSON blob like {"ENV_APP"...}, we already handled it.
-                # If v was a raw string "KEY=VAL", it goes to global base.
-                is_structured_json = any(key.startswith("ENV_") for key in global_parsed.keys())
-                if is_structured_json:
-                    # Re-verify and update working_vars if it was a structured blob
-                    for gk, gv in global_parsed.items():
-                        if gk.startswith("ENV_"):
-                            working_vars[gk] = gv
-                else:
-                    special_global_base.update(global_parsed)
+        elif k == "ENV":
+            # If ENV is passed directly as a string (and wasn't handled as a bulk blob above)
+            try:
+                # Only process if it's NOT a bulk JSON (sanity check)
+                if not (v.strip().startswith("{") and v.strip().endswith("}")):
+                    global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
+                    if global_parsed:
+                        special_global_base.update(global_parsed)
+                        print(f"DEBUG: Found {len(global_parsed)} keys in direct ENV secret")
+            except Exception:
+                pass
 
     if not working_vars and not special_global_base:
         return {}
