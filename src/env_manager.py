@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import re
@@ -6,6 +7,7 @@ from typing import Dict, List
 import yaml
 
 from src import config
+from src.connection import run_command
 
 
 def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> Dict[str, str]:
@@ -368,16 +370,19 @@ def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
 
 
 def create_env_file(conn, file_path: str, env_vars: Dict[str, str]) -> None:
-    """Create .env file with secure permissions (0o600)"""
+    """Create .env file with secure permissions (0o600) via run_command (supports sudo)"""
     if not env_vars:
         return
     dir_path = os.path.dirname(file_path)
     if dir_path and dir_path != file_path:
-        # Only mkdir, skip chmod on directory to avoid permission errors if it exists/owned by others
-        conn.run(f"mkdir -p {dir_path}")
+        # Only mkdir, skip chmod on directory to avoid permission errors
+        run_command(conn, f"mkdir -p {dir_path}")
+
     env_content = "\n".join([f"{k}={v}" for k, v in env_vars.items()])
-    conn.run(f"cat > \"{file_path}\" << 'EOF'\n{env_content}\nEOF")
-    conn.run(f'chmod 644 "{file_path}"')
+    # Use base64 to avoid shell character/newline mangling issues
+    encoded = base64.b64encode(env_content.encode("utf-8")).decode("utf-8")
+    run_command(conn, f"echo '{encoded}' | base64 -d | tee \"{file_path}\" > /dev/null")
+    run_command(conn, f'chmod 600 "{file_path}"')
 
 
 def generate_env_files(conn) -> None:

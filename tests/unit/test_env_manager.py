@@ -80,11 +80,16 @@ def test_root_mega_file_creation(mock_conn, monkeypatch):
 
 def test_heredoc_escaping(mock_conn):
     env_vars = {"KEY": "val$with$dollars"}
-    create_env_file(mock_conn, ".env", env_vars)
-    found_secure_cat = False
-    for call in mock_conn.run.call_args_list:
-        cmd = call[0][0]
-        if "cat >" in cmd and "<< 'EOF'" in cmd:
-            found_secure_cat = True
-            assert "KEY=val$with$dollars" in cmd
-    assert found_secure_cat
+    # We need to mock run_command because create_env_file now uses it
+    with patch("src.env_manager.run_command") as mock_run_cmd:
+        create_env_file(mock_conn, ".env", env_vars)
+
+        found_base64_tee = False
+        for call in mock_run_cmd.call_args_list:
+            cmd = call[0][1]
+            if "base64 -d" in cmd and "tee" in cmd:
+                found_base64_tee = True
+                # The content should be base64 encoded
+                # KEY=val$with$dollars -> S0VZPXZhbCR3aXRoJGRvbGxhcnM=
+                assert "S0VZPXZhbCR3aXRoJGRvbGxhcnM=" in cmd
+        assert found_base64_tee
