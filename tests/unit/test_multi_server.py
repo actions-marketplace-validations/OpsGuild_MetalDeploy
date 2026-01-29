@@ -89,7 +89,7 @@ def test_multi_host_distribution(monkeypatch, mock_executor):
 def test_worker_reloads_config(monkeypatch):
     """Test that the worker function reloads config."""
     # We can't easily test cross-process state here, but we can verify the function calls config.load
-    with patch("src.config.config.load") as mock_load, patch(
+    with patch.object(config, "load") as mock_load, patch(
         "src.orchestrator.deploy_single_host"
     ) as mock_deploy:
         overrides = {"REMOTE_HOST": "test-host"}
