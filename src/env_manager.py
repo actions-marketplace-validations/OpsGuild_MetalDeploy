@@ -126,9 +126,12 @@ def detect_file_patterns(
                 if var_name.startswith(prefix):
                     suffix = var_name[len(prefix) :]
                     break
-        else:
+        elif var_name.startswith("ENV_"):
             # Strip ENV_
             suffix = var_name[4:]
+        else:
+            # This is a direct variable (no prefix) from a blob, it goes to the primary .env
+            continue
 
         # Clean up leading underscores if any (e.g. _REDIS)
         suffix = suffix.lstrip("_")
@@ -203,8 +206,8 @@ def merge_env_vars_by_priority(
         # Base variables (ENV_X)
         for k, v in all_env_vars.items():
             if k.startswith("ENV_"):
-                # Skip internal configuration (ENV_FILES_*)
-                if k.startswith("ENV_FILES_"):
+                # Skip internal configuration and raw blobs
+                if k.startswith("ENV_FILES_") or k == "ENV" or k == "ENV_BLOB":
                     continue
 
                 # Skip environment-specific ones
@@ -295,32 +298,67 @@ def merge_env_vars_by_priority(
 
 def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
     """Auto-detect and parse environment-specific secrets with priority system"""
-    all_env_vars = {
-        k: v
-        for k, v in os.environ.items()
-        if (k.startswith("ENV_") or k == "ENV") and not k.startswith("ENV_FILES_")
-    }
-    if not all_env_vars:
+    # 1. Parse Blobs (base layer)
+    # This supports env_blob: ${{ toJSON(secrets) }}
+    blob_content = os.environ.get("ENV") or os.environ.get("ENV_BLOB")
+    working_vars = {}
+    special_global_base = {}
+
+    if blob_content:
+        parsed_blob = parse_all_in_one_secret(blob_content, config.ENV_FILES_FORMAT)
+        if parsed_blob:
+            # If the blob content ITSELF is a dictionary (e.g. JSON/YAML)
+            for k, v in parsed_blob.items():
+                if k == "ENV":
+                    # This is the literal ENV secret inside a bulk blob
+                    global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
+                    if global_parsed:
+                        special_global_base.update(global_parsed)
+                elif k.startswith("ENV_"):
+                    # This is a structured secret (e.g. ENV_APP_...)
+                    working_vars[k] = v
+                # ALL OTHER KEYS are ignored (strictly no global fallout)
+
+    # 2. Overwrite with real environment variables (higher priority)
+    # This handles individual secrets mapped in the workflow 'env:' block
+    for k, v in os.environ.items():
+        if k.startswith("ENV_") and not k.startswith("ENV_FILES_"):
+            working_vars[k] = v
+        elif k == "ENV" or k == "ENV_BLOB":
+            # If ENV is passed directly as a string (not in a bulk blob)
+            # though usually it comes through the blob logic above
+            global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
+            if global_parsed:
+                # If v was a JSON blob like {"ENV_APP"...}, we already handled it.
+                # If v was a raw string "KEY=VAL", it goes to global base.
+                is_structured_json = any(key.startswith("ENV_") for key in global_parsed.keys())
+                if is_structured_json:
+                    # Re-verify and update working_vars if it was a structured blob
+                    for gk, gv in global_parsed.items():
+                        if gk.startswith("ENV_"):
+                            working_vars[gk] = gv
+                else:
+                    special_global_base.update(global_parsed)
+
+    if not working_vars and not special_global_base:
         return {}
 
     structure = config.ENV_FILES_STRUCTURE
     if structure == "single":
         patterns = [".env"]
     else:
-        patterns = detect_file_patterns(all_env_vars, structure, config.ENVIRONMENT)
+        patterns = detect_file_patterns(working_vars, structure, config.ENVIRONMENT)
         if config.ENV_FILES_PATTERNS and structure != "auto":
             patterns = [p.strip() for p in config.ENV_FILES_PATTERNS if p.strip()]
 
     result = {}
-    if "ENV" in all_env_vars:
-        # Treat ENV as a global blob that goes into .env (or first pattern) without prefixing
-        parsed = parse_all_in_one_secret(all_env_vars["ENV"], config.ENV_FILES_FORMAT)
-        if parsed:
-            target_file = patterns[0] if patterns else ".env"
-            result[target_file] = parsed.copy()
+    # 3. Apply the literal global base layer to the main .env file
+    if special_global_base:
+        target_file = patterns[0] if patterns else ".env"
+        result[target_file] = special_global_base.copy()
 
     for pattern in patterns:
-        merged_vars = merge_env_vars_by_priority(all_env_vars, config.ENVIRONMENT, pattern)
+        merged_vars = merge_env_vars_by_priority(working_vars, config.ENVIRONMENT, pattern)
         if merged_vars:
             if pattern in result:
                 result[pattern].update(merged_vars)
@@ -351,7 +389,8 @@ def generate_env_files(conn) -> None:
         all_env_vars = {
             k: v
             for k, v in os.environ.items()
-            if (k.startswith("ENV_") or k == "ENV") and not k.startswith("ENV_FILES_")
+            if (k.startswith("ENV_") or k == "ENV" or k == "ENV_BLOB")
+            and not k.startswith("ENV_FILES_")
         }
         env_file_data = detect_environment_secrets()
         if not env_file_data:

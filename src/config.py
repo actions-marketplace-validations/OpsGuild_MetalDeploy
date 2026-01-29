@@ -70,11 +70,16 @@ class Config:
         # Build Artifacts
         artifacts = get_env("COPY_ARTIFACTS")
         self.COPY_ARTIFACTS = []
+        workspace = get_env("GITHUB_WORKSPACE", ".")
         if artifacts:
             for item in artifacts.split(","):
                 if ":" in item:
                     local, remote = item.split(":", 1)
-                    self.COPY_ARTIFACTS.append((local.strip(), remote.strip()))
+                    local_path = local.strip()
+                    # Resolve relative path against workspace if not absolute
+                    if not os.path.isabs(local_path):
+                        local_path = os.path.abspath(os.path.join(workspace, local_path))
+                    self.COPY_ARTIFACTS.append((local_path, remote.strip()))
 
         # Global state for temporary files
         self.SSH_KEY_PATH = None
