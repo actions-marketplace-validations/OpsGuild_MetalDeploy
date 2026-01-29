@@ -62,9 +62,8 @@ class Config:
         self.ENV_FILES_GENERATE = get_bool_env("ENV_FILES_GENERATE")
         self.ENV_FILES_STRUCTURE = os.getenv("ENV_FILES_STRUCTURE", "auto").lower()
         self.ENV_FILES_PATH = os.getenv("ENV_FILES_PATH")
-        self.ENV_FILES_PATTERNS = os.getenv("ENV_FILES_PATTERNS", ".env.app,.env.database").split(
-            ","
-        )
+        env_patterns = os.getenv("ENV_FILES_PATTERNS")
+        self.ENV_FILES_PATTERNS = env_patterns.split(",") if env_patterns else []
         self.ENV_FILES_CREATE_ROOT = get_bool_env("ENV_FILES_CREATE_ROOT", "false")
         self.ENV_FILES_FORMAT = os.getenv("ENV_FILES_FORMAT", "auto").lower()
 
