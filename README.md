@@ -60,12 +60,17 @@ metaldeploy --host 1.2.3.4 --user root --ssh-key ~/.ssh/id_rsa --type docker
 ```yaml
 - name: Deploy with MetalDeploy
   uses: OpsGuild/MetalDeploy@v1
+  env:
+    # Set/Override specific variables
+    ENV_APP_PORT: 9090
   with:
     git_auth_method: token
     git_token: ${{ secrets.GITHUB_TOKEN }}
     remote_host: ${{ secrets.REMOTE_HOST }}
     ssh_key: ${{ secrets.SSH_PRIVATE_KEY }}
     environment: prod
+    # Pass all secrets in one go (Zero-Config)
+    env_blob: ${{ toJSON(secrets) }}
 ```
 
 ### Advanced Example with Docker
@@ -95,7 +100,25 @@ Copy specific files or directories (like `node_modules` or `dist/`) to the serve
     ssh_key: ${{ secrets.SSH_PRIVATE_KEY }}
     # Copy local 'dist' folder to remote '/app/dist'
     # Copy local 'package.json' to remote '/app/package.json'
-    copy_artifacts: "dist/:/app/dist, package.json:/app/package.json"
+    copy_artifacts: "dist/:dist, package.json:package.json"
+```
+
+### Secure Secret Management
+
+MetalDeploy is designed for Zero-Config secret management. Use the **`env_blob`** input to pass all repository secrets without mapping them manually.
+
+- **Bulk Injection**: Use `env_blob: ${{ toJSON(secrets) }}` to securely tunnel all secrets starting with `ENV_` to your server.
+- **Manual Overrides**: Use the standard GitHub Action **`env:`** block to override secrets for specific steps.
+
+```yaml
+- name: Deploy with Overrides
+  uses: OpsGuild/MetalDeploy@v1
+  env:
+    ENV_APP_PORT: 3000 # This wins over repository secrets
+  with:
+    env_blob: ${{ toJSON(secrets) }}
+    env_files_generate: true
+    ...
 ```
 
 ### Multi-Server Deployment

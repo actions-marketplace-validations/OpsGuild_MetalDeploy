@@ -9,104 +9,57 @@ MetalDeploy includes powerful environment file generation capabilities that auto
 - ✅ **Priority System** - Environment-specific secrets override base secrets automatically
 - ✅ **All-in-One Secret Support** - Store multiple variables in single secrets
 - ✅ **Global Literal Blob** - Support for a literal `ENV` secret for non-prefixed global dumps
+- ✅ **Strict Filtering** - Only processes keys starting with `ENV_` or the literal `ENV` to ensure security
 - ✅ **Secure Handling** - Files created with `0o604` permissions, no secret logging
 - ✅ **Secrets & Variables** - Supports both GitHub Secrets (encrypted) and GitHub Variables (plaintext)
 
-## Configuration
-
-| Input | Description | Default |
-|-------|-------------|---------|
-| `env_files_generate` | Enable environment file generation | `false` |
-| `env_files_structure` | File structure: `single`, `flat`, `nested`, `auto`, `custom` | `auto` |
-| `env_files_path` | Custom path (when `structure=custom`) | - |
-| `env_files_patterns` | Comma-separated patterns (`.env.app,.env.database`) | - |
-| `env_files_create_root` | Also create a combined `.env` file in project root | `false` |
-| `env_files_format` | Format for parsing: `auto`, `env`, `json`, `yaml` | `auto` |
-
 ## How it Works
 
-1. **Discovery**: The action scans environment variables starting with `ENV_` or a literal `ENV` secret.
+1. **Discovery**: The action scans environment variables starting with `ENV_` or a literal `ENV`.
 2. **Bucketing**:
-    - **Literal `ENV`**: Treated as a non-prefixed global blob. Its contents go directly into the `.env` file without any modifications.
+    - **Literal `ENV`**: Treated as a non-prefixed global blob. Its contents go directly into the `.env` file without prefixes.
     - **`ENV_COMPONENT_...`**: Treated as part of a specific component (e.g., `ENV_APP_...` goes to `.env.app`).
-    - **`ENV_ENVIRONMENT_...`**: Automatically identifies prefixes matching common environments (`PROD`, `STAGING`, `DEV`, `TEST`) **plus** your current `environment` input.
-3. **Generation**: Files are generated on the remote server with secure permissions.
+    - **`ENV_ENVIRONMENT_...`**: Identifies prefixes matching common environments (`PROD`, `STAGING`, `DEV`, `TEST`) **plus** your current `environment` input.
+3. **Strict Filtering**: If using `env_blob: ${{ toJSON(secrets) }}`, MetalDeploy **only** processes keys inside that blob that start with `ENV_` or are the literal `ENV`. Other secrets (like `STRIPE_KEY` or `GITHUB_TOKEN`) are ignored for security unless specifically prefixed.
 
-## Secret Naming Convention
+## Priority System (Last one wins)
 
-### Literal Global Blob (No Prefix)
-If you want to dump a list of variables without any prefixing or component logic, use the literal secret name `ENV`.
+The priority system ensures that specific overrides always take precedence:
 
-```bash
-# GitHub Secret: ENV
-PORT=8080
-DEBUG=true
-```
-**Result**: `.env` contains `PORT=8080` and `DEBUG=true`.
+1. **`env_blob` Contents** (Lowest)
+   Everything inside your `env_blob` (like `toJSON(secrets)`) is loaded first.
+2. **Explicit Workflow `env:` Variables** (Medium)
+   Variables you map directly in your workflow's `env:` block win over the blob.
+3. **Environment Overrides** (Highest)
+   Secrets matching your `environment` input (e.g. `ENV_PROD_...`) win last.
 
-### Individual Variables
+## Workflow Structure Example
 
-```bash
-# Base (environment-agnostic)
-ENV_APP_DEBUG=false
-ENV_APP_SECRET_KEY=base-key
-ENV_DATABASE_HOST=localhost
+Here is exactly how the `env:` block looks alongside the `with:` block in a GitHub Action:
 
-# Environment-specific (higher priority)
-# If environment input is 'prod', this will override base values
-ENV_PROD_APP_SECRET_KEY=prod-secret
-ENV_PROD_DATABASE_HOST=prod-host
-```
-
-### All-in-One Variables
-
-```bash
-# Environment-specific all-in-one (highest priority)
-ENV_PROD_APP="
-DEBUG=false
-SECRET_KEY=prod-secret
-DATABASE_URL=postgresql://prod-host:5432/db
-"
-
-# Base all-in-one (fallback)
-ENV_APP="
-DEBUG=true
-SECRET_KEY=dev-secret
-"
+```yaml
+- name: Deploy to Staging
+  uses: ./
+  env:
+    # MANUAL OVERRIDES GO HERE
+    ENV_APP_PORT: 9090 # This wins over any other PORT setting
+  with:
+    env_files_generate: 'true'
+    env_blob: ${{ toJSON(secrets) }}
+    environment: 'staging'
+    remote_host: ${{ secrets.REMOTE_HOST }}
+    # ... other inputs ...
 ```
 
-## Priority System
+## Usage Example: Bulk Secret Injection
 
-The priority system ensures proper variable overriding (last one wins):
-
-1. **Literal `ENV`** (Lowest priority - Base Layer)
-2. **Base Component secrets** (e.g., `ENV_APP_...`)
-3. **Base All-in-one secrets** (e.g., `ENV_APP="..."`)
-4. **Env-specific Component secrets** (e.g., `ENV_PROD_APP_...`)
-5. **Env-specific All-in-one secrets** (Highest priority - `ENV_PROD_APP="..."`)
-
-## Usage Examples
-
-### Example 1: Custom Environment Names
-MetalDeploy automatically supports your custom environment names for prefixes.
+For the simplest setup, pass all secrets in one go:
 
 ```yaml
 - uses: ./
   with:
     env_files_generate: 'true'
-    environment: 'qa' # Custom environment name
+    env_blob: ${{ toJSON(secrets) }}
 ```
-**Secrets**:
-- `ENV_APP_PORT=8080` (Base)
-- `ENV_QA_APP_PORT=9090` (Overrides base because environment is 'qa')
 
-**Result**: `.env.app` will have `PORT=9090`.
-
-### Example 2: Single Mode
-```yaml
-- uses: ./
-  with:
-    env_files_generate: 'true'
-    env_files_structure: 'single'
-```
-**Result**: Creates `/project/.env` with all variables merged. Component variables are prefixed (e.g., `APP_PORT`, `DB_HOST`) to prevent collisions, while literal `ENV` variables remain un-prefixed.
+**Security Check**: Only secrets you have named with the `ENV_` prefix in your repository settings will be processed. All other private secrets remain untouched.
