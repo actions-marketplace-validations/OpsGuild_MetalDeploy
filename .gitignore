@@ -33,6 +33,8 @@ htmlcov/
 .pytest_cache/
 .tox/
 .hypothesis/
+generated_envs/
+**/generated_envs/
 
 # IDEs
 .vscode/
