@@ -38,6 +38,42 @@ def test_ssh_connection(integration_conn):
     assert result.stdout.strip() == "root"
 
 
+@pytest.mark.integration
+def test_artifact_copying(integration_conn, clean_remote_dir, monkeypatch, tmp_path):
+    """Test copying local artifacts to remote."""
+    # 1. Setup local artifact
+    local_dir = tmp_path / "dist"
+    local_dir.mkdir()
+    (local_dir / "app.js").write_text("console.log('hello');")
+
+    # 2. Setup config
+    remote_base = clean_remote_dir("artifact_test")
+    # Clean remote dir creates the dir, but our logic also mkdir -p parent.
+    # We want to put 'dist' inside 'remote_base'
+    remote_target = f"{remote_base}/app_dist"
+
+    monkeypatch.setattr(config, "COPY_ARTIFACTS", [(str(local_dir), remote_target)])
+    monkeypatch.setattr(config, "GIT_DIR", remote_base)
+
+    # 3. Trigger Copy
+    from src.connection import copy_artifacts
+
+    copy_artifacts(integration_conn)
+
+    # 4. Verify
+    # Since we copied directory 'dist' to 'remote_target' (app_dist)
+    # The layout depends on how we tarred it.
+    # Logic: tar.add(local_dir, arcname=basename(remote_target)) -> app_dist/...
+    # Extract into parent of remote_target (remote_base) -> remote_base/app_dist
+
+    result = integration_conn.run(f"ls -R {remote_target}", warn=True)
+    assert result.ok
+    assert "app.js" in result.stdout
+
+    content = integration_conn.run(f"cat {remote_target}/app.js", hide=True).stdout
+    assert "console.log('hello');" in content
+
+
 # ------------------------------------------------------------------------------
 # HYPER-EXHAUSTIVE PERMUTATION TESTS
 # ------------------------------------------------------------------------------

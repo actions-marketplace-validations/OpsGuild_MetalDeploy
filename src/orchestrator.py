@@ -3,7 +3,7 @@ import os
 from fabric import Connection
 
 from src import config
-from src.connection import install_dependencies, run_command, setup_ssh_key
+from src.connection import copy_artifacts, install_dependencies, run_command, setup_ssh_key
 from src.env_manager import generate_env_files
 from src.git_ops import clone_repo, setup_git_auth
 from src.providers.baremetal import deploy_baremetal
@@ -74,6 +74,8 @@ def handle_connection():
     clone_repo(conn)
     if config.ENV_FILES_GENERATE:
         generate_env_files(conn)
+
+    copy_artifacts(conn)
 
     deploy(conn)
 
