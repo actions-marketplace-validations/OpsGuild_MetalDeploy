@@ -23,14 +23,16 @@ def setup_ssh_key():
         os.chmod(config.SSH_KEY_PATH, 0o600)
 
 
-def run_command(conn, command, force_sudo=False):
-    """
-    Helper function to run commands with optional sudo support.
-    """
+def run_command(conn, command: str, force_sudo: bool = False, use_shell_profile: bool = True):
+    """Run a command on the remote host with environment setup and sudo support"""
     use_sudo_for_this = config.USE_SUDO or force_sudo
 
-    if not use_sudo_for_this:
+    if not use_sudo_for_this and not use_shell_profile:
         return conn.run(command, warn=False)
+
+    if not use_shell_profile:
+        # Just sudo without the expensive profile loading
+        return conn.run(f"sudo {command}", warn=False)
 
     if config.REMOTE_USER == "root":
         home_dir = "/root"

@@ -416,14 +416,16 @@ def create_env_file(conn, file_path: str, env_content: str) -> None:
     if not env_content:
         return
     dir_path = os.path.dirname(file_path)
-    if dir_path and dir_path != file_path:
-        # Only mkdir, skip chmod on directory to avoid permission errors
-        run_command(conn, f"mkdir -p {dir_path}")
-
     # Use base64 to avoid shell character/newline mangling issues
     encoded = base64.b64encode(env_content.encode("utf-8")).decode("utf-8")
-    run_command(conn, f"echo '{encoded}' | base64 -d | tee \"{file_path}\" > /dev/null")
-    run_command(conn, f'chmod 600 "{file_path}"')
+
+    # Batch commands into one SSH round-trip and skip expensive shell profile sourcing
+    batch_cmd = (
+        f'mkdir -p "{dir_path}" && '
+        f'echo "{encoded}" | base64 -d | tee "{file_path}" > /dev/null && '
+        f'chmod 600 "{file_path}"'
+    )
+    run_command(conn, batch_cmd, use_shell_profile=False)
 
 
 def generate_env_files(conn) -> None:

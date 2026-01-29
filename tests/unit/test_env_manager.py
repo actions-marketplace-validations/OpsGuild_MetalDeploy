@@ -81,15 +81,16 @@ def test_root_mega_file_creation(mock_conn, monkeypatch):
 def test_heredoc_escaping(mock_conn):
     # We need to mock run_command because create_env_file now uses it
     with patch("src.env_manager.run_command") as mock_run:
-        create_env_file(mock_conn, ".env", "PORT=3000\nDEBUG=true")
+        create_env_file(mock_conn, "/testing/.env", "PORT=3000\nDEBUG=true")
 
-        # Check that it was called with base64 encoded content
-        found_base64_tee = False
-        for call in mock_run.call_args_list:
-            cmd = call[0][1]
-            if "base64 -d" in cmd and "tee" in cmd:
-                found_base64_tee = True
-        assert found_base64_tee
+        # Check that it was called with a BATCHED command
+        assert mock_run.call_count == 1
+        cmd = mock_run.call_args[0][1]
+        assert "mkdir -p" in cmd
+        assert "echo" in cmd
+        assert "chmod 600" in cmd
+        assert "base64 -d" in cmd
+        assert mock_run.call_args[1].get("use_shell_profile") is False
 
 
 def test_mixed_blob_and_raw_bucketing(mocker):
