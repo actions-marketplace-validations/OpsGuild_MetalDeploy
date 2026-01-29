@@ -10,7 +10,9 @@ from src import config
 from src.connection import run_command
 
 
-def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> Dict[str, str]:
+def parse_all_in_one_secret(
+    secret_content: str, format_hint: str = "auto", strip_quotes: bool = True
+) -> Dict[str, str]:
     """Parse all-in-one secret with multiple format support"""
     if not secret_content:
         return {}
@@ -95,11 +97,12 @@ def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> D
 
             # Post-process the value:
             # 1. Strip trailing delimiters (commas/spaces)
-            # 2. Handle quoting: if starts and ends with ", strip them
+            # 2. Handle quoting: only if strip_quotes is True
             value = raw_value.rstrip(" ,")
 
-            if (value.startswith('"') and value.endswith('"')) or (
-                value.startswith("'") and value.endswith("'")
+            if strip_quotes and (
+                (value.startswith('"') and value.endswith('"'))
+                or (value.startswith("'") and value.endswith("'"))
             ):
                 # Strip outside quotes but keep internal content (including newlines/escapes)
                 value = value[1:-1]
@@ -109,6 +112,45 @@ def parse_all_in_one_secret(secret_content: str, format_hint: str = "auto") -> D
         return env_vars
 
     return {}
+
+
+def merge_raw_env(base_content: str, overrides: Dict[str, str]) -> str:
+    """Merge overrides into base_content while preserving comments and formatting"""
+    if not base_content:
+        return "\n".join([f"{k}={v}" for k, v in overrides.items()])
+
+    lines = base_content.splitlines()
+    result_lines = []
+    processed_keys = set()
+
+    for line in lines:
+        stripped = line.strip()
+        # Preserve comments and empty lines
+        if not stripped or stripped.startswith("#"):
+            result_lines.append(line)
+            continue
+
+        # Look for KEY=VALUE
+        if "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in overrides:
+                # Replace the line with the override
+                result_lines.append(f"{key}={overrides[key]}")
+                processed_keys.add(key)
+                continue
+
+        result_lines.append(line)
+
+    # Append new keys that weren't in the base content
+    for k, v in overrides.items():
+        if k not in processed_keys:
+            # If the last line isn't empty, add a separator if this is the first new key
+            if not processed_keys and result_lines and result_lines[-1].strip():
+                result_lines.append("")
+            result_lines.append(f"{k}={v}")
+            processed_keys.add(k)
+
+    return "\n".join(result_lines)
 
 
 def detect_file_patterns(
@@ -233,7 +275,7 @@ def merge_env_vars_by_priority(
         for k, v in all_env_vars.items():
             if k.startswith("ENV_"):
                 # Skip internal configuration and raw blobs
-                if k.startswith("ENV_FILES_") or k == "ENV" or k == "ENV_BLOB":
+                if k.startswith("ENV_FILES_") or k == "ENV":
                     continue
 
                 # Skip environment-specific ones
@@ -322,97 +364,62 @@ def merge_env_vars_by_priority(
     return merged
 
 
-def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
-    """Auto-detect and parse environment-specific secrets with priority system"""
-    # 1. Parse Blobs (base layer)
-    # This supports env_blob: ${{ toJSON(secrets) }} or ENV: <raw_block>
-    blob_content = os.environ.get("ENV") or os.environ.get("ENV_BLOB")
-    working_vars = {}
-    special_global_base = {}
+def detect_environment_secrets() -> Dict[str, str]:
+    """Auto-detect secrets and return raw file content mapped by pattern"""
+    # 1. Get Base Template (ENV)
+    base_template = os.environ.get("ENV") or ""
 
-    if blob_content:
-        # Check if the blob content itself is JSON/YAML
-        raw_processed = blob_content.replace("\\n", "\n").strip()
-        is_json_or_yaml = (raw_processed.startswith("{") and raw_processed.endswith("}")) or (
-            raw_processed.startswith("[") and raw_processed.endswith("]")
-        )
-
-        parsed_blob = parse_all_in_one_secret(blob_content, config.ENV_FILES_FORMAT)
-
-        if parsed_blob:
-            if is_json_or_yaml:
-                # Bulk JSON/YAML blob (from toJSON(secrets))
-                for k, v in parsed_blob.items():
-                    if k == "ENV":
-                        # This is the literal ENV secret inside a bulk blob
-                        global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
-                        if global_parsed:
-                            special_global_base.update(global_parsed)
-                            print(f"DEBUG: Found {len(global_parsed)} keys inside nested 'ENV' key")
-                    elif k.startswith("ENV_"):
-                        # This is a structured secret (e.g. ENV_APP_...)
-                        working_vars[k] = v
-                    # OTHER KEYS ARE IGNORED (strictly no global fallout)
-            else:
-                # Direct raw block of variables (e.g. ENV: <multi-line text>)
-                # Everything in a raw block goes to the global base
-                special_global_base.update(parsed_blob)
-                print(f"DEBUG: Found {len(parsed_blob)} keys in direct raw block")
-
-    # 2. Add real environment variables (higher priority)
-    # This handles individual secrets mapped in the workflow 'env:' block
+    # 2. Collect Overrides (ENV_...)
+    # We group variables by their intended file pattern
+    raw_overrides = {}
     for k, v in os.environ.items():
         if k.startswith("ENV_") and not k.startswith("ENV_FILES_"):
-            working_vars[k] = v
-        elif k == "ENV":
-            # If ENV is passed directly as a string (and wasn't handled as a bulk blob above)
-            try:
-                # Only process if it's NOT a bulk JSON (sanity check)
-                if not (v.strip().startswith("{") and v.strip().endswith("}")):
-                    global_parsed = parse_all_in_one_secret(v, config.ENV_FILES_FORMAT)
-                    if global_parsed:
-                        special_global_base.update(global_parsed)
-                        print(f"DEBUG: Found {len(global_parsed)} keys in direct ENV secret")
-            except Exception:
-                pass
-
-    if not working_vars and not special_global_base:
-        return {}
+            raw_overrides[k] = v
 
     structure = config.ENV_FILES_STRUCTURE
     if structure == "single":
         patterns = [".env"]
     else:
-        patterns = detect_file_patterns(working_vars, structure, config.ENVIRONMENT)
+        patterns = detect_file_patterns(raw_overrides, structure, config.ENVIRONMENT)
         if config.ENV_FILES_PATTERNS and structure != "auto":
             patterns = [p.strip() for p in config.ENV_FILES_PATTERNS if p.strip()]
 
     result = {}
-    # 3. Apply the literal global base layer to the main .env file
-    if special_global_base:
-        target_file = patterns[0] if patterns else ".env"
-        result[target_file] = special_global_base.copy()
 
     for pattern in patterns:
-        merged_vars = merge_env_vars_by_priority(working_vars, config.ENVIRONMENT, pattern)
-        if merged_vars:
-            if pattern in result:
-                result[pattern].update(merged_vars)
-            else:
-                result[pattern] = merged_vars
+        # Merge individual vars for this pattern
+        # Note: merge_env_vars_by_priority already handles prefixes and blobs
+        # and returns a final flattened dict of KEY:VALUE
+        overrides = merge_env_vars_by_priority(raw_overrides, config.ENVIRONMENT, pattern)
+
+        if pattern == ".env":
+            # For the main .env, we use the base template
+            result[pattern] = merge_raw_env(base_template, overrides)
+        else:
+            # For patterned files, we just generate the KV pairs (or we could support ENV_{COMP})
+            # Check if there's a component-specific base template (e.g. ENV_APP)
+            comp_base_key = f"ENV_{pattern.replace('.env.', '').upper()}"
+            comp_base = ""
+            if comp_base_key in raw_overrides:
+                comp_base = raw_overrides[comp_base_key]
+                # If it's a blob, we don't want to use it as a 'raw template' if it looks like JSON
+                if comp_base.strip().startswith("{"):
+                    comp_base = ""
+
+            result[pattern] = merge_raw_env(comp_base, overrides)
+
     return result
 
 
-def create_env_file(conn, file_path: str, env_vars: Dict[str, str]) -> None:
+def create_env_file(conn, file_path: str, env_content: str) -> None:
     """Create .env file with secure permissions (0o600) via run_command (supports sudo)"""
-    if not env_vars:
+    if not env_content:
         return
     dir_path = os.path.dirname(file_path)
     if dir_path and dir_path != file_path:
         # Only mkdir, skip chmod on directory to avoid permission errors
         run_command(conn, f"mkdir -p {dir_path}")
 
-    env_content = "\n".join([f"{k}={v}" for k, v in env_vars.items()])
     # Use base64 to avoid shell character/newline mangling issues
     encoded = base64.b64encode(env_content.encode("utf-8")).decode("utf-8")
     run_command(conn, f"echo '{encoded}' | base64 -d | tee \"{file_path}\" > /dev/null")
@@ -429,8 +436,7 @@ def generate_env_files(conn) -> None:
         all_env_vars = {
             k: v
             for k, v in os.environ.items()
-            if (k.startswith("ENV_") or k == "ENV" or k == "ENV_BLOB")
-            and not k.startswith("ENV_FILES_")
+            if (k.startswith("ENV_") or k == "ENV") and not k.startswith("ENV_FILES_")
         }
         env_file_data = detect_environment_secrets()
         if not env_file_data:
@@ -445,19 +451,22 @@ def generate_env_files(conn) -> None:
             config.GIT_SUBDIR,
         )
 
-        for pattern, env_vars in env_file_data.items():
+        for pattern, env_content in env_file_data.items():
             file_path = file_paths.get(pattern)
             if file_path:
-                print(f"📝 Creating {file_path} with {len(env_vars)} variables")
-                create_env_file(conn, file_path, env_vars)
+                print(f"📝 Creating {file_path} (formatted content preserved)")
+                create_env_file(conn, file_path, env_content)
 
         if config.ENV_FILES_CREATE_ROOT:
             # Generate the root file as if it were 'single' structure to ensure consistent prefixing
             root_vars = merge_env_vars_by_priority(all_env_vars, config.ENVIRONMENT, ".env")
             root_env_path = os.path.join(config.GIT_SUBDIR, ".env")
             if root_vars:
-                print(f"📝 Creating combined root {root_env_path} with {len(root_vars)} variables")
-                create_env_file(conn, root_env_path, root_vars)
+                # For root mega-file, we also try to use the ENV template
+                base_template = os.environ.get("ENV") or ""
+                root_content = merge_raw_env(base_template, root_vars)
+                print(f"📝 Creating combined root {root_env_path}")
+                create_env_file(conn, root_env_path, root_content)
 
         print("✅ Environment files generated successfully")
 

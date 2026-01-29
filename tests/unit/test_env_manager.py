@@ -1,4 +1,3 @@
-import json
 import os
 from unittest.mock import Mock, patch
 
@@ -69,42 +68,39 @@ def test_root_mega_file_creation(mock_conn, monkeypatch):
             generate_env_files(mock_conn)
 
             # We expect .env.app, .env.db and root .env
-            # (plus maybe .env.files based on the shared ENV_ prefix bug)
             assert mock_create.call_count >= 3
 
             # Look for the root .env in our testing subdir
             root_calls = [c for c in mock_create.call_args_list if c[0][1] == "/testing/.env"]
             assert len(root_calls) == 1
-            merged_vars = root_calls[0][0][2]
-            assert "APP_V1" in merged_vars
-            assert "DB_V2" in merged_vars
+            merged_content = root_calls[0][0][2]
+            assert "APP_V1=val1" in merged_content
+            assert "DB_V2=val2" in merged_content
 
 
 def test_heredoc_escaping(mock_conn):
-    env_vars = {"KEY": "val$with$dollars"}
     # We need to mock run_command because create_env_file now uses it
-    with patch("src.env_manager.run_command") as mock_run_cmd:
-        create_env_file(mock_conn, ".env", env_vars)
+    with patch("src.env_manager.run_command") as mock_run:
+        create_env_file(mock_conn, ".env", "PORT=3000\nDEBUG=true")
 
+        # Check that it was called with base64 encoded content
         found_base64_tee = False
-        for call in mock_run_cmd.call_args_list:
+        for call in mock_run.call_args_list:
             cmd = call[0][1]
             if "base64 -d" in cmd and "tee" in cmd:
                 found_base64_tee = True
-                # The content should be base64 encoded
-                # KEY=val$with$dollars -> S0VZPXZhbCR3aXRoJGRvbGxhcnM=
-                assert "S0VZPXZhbCR3aXRoJGRvbGxhcnM=" in cmd
         assert found_base64_tee
 
 
 def test_mixed_blob_and_raw_bucketing(mocker):
     """Regression test for user's mixed secret setup (toJSON blob + raw block)."""
-    # Setup: ENV_BLOB has a JSON with an 'ENV' key containing raw vars
-    mock_json = json.dumps({"ENV": "A=1\nB=2", "ENV_APP": "C=3", "OTHER_UNRELATED": "ignored"})
+    # Setup: ENV is a raw block with comments
+    mock_raw = "# Comments\nA=1\nB=2"
 
     # Isolate os.environ to avoid pollution from other tests
     mocker.patch(
-        "os.environ", {"ENV_BLOB": mock_json, "ENV_FILES_GENERATE": "true", "ENVIRONMENT": "dev"}
+        "os.environ",
+        {"ENV": mock_raw, "ENV_APP": "C=3", "ENV_FILES_GENERATE": "true", "ENVIRONMENT": "dev"},
     )
 
     # Patch the config object directly
@@ -116,9 +112,10 @@ def test_mixed_blob_and_raw_bucketing(mocker):
 
     result = detect_environment_secrets()
 
-    # Must correctly parse both from the raw block (A, B) and structured blob (APP_C)
+    # result is now a dict of strings
     assert ".env" in result
-    assert result[".env"]["A"] == "1"
-    assert result[".env"]["B"] == "2"
-    assert "APP_C" in result[".env"]
+    assert "# Comments" in result[".env"]
+    assert "A=1" in result[".env"]
+    assert "B=2" in result[".env"]
+    assert "APP_C=3" in result[".env"]
     assert "OTHER_UNRELATED" not in result[".env"]

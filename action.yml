@@ -102,9 +102,6 @@ inputs:
   copy_artifacts:
     description: 'Comma-separated list of build artifacts to copy to the server (local_path:remote_path). Paths are relative to git_dir unless absolute.'
     required: false
-  env_blob:
-    description: 'A block of environment variables in KEY=VALUE format (e.g., from a secret) to be included in .env files without prefixes.'
-    required: false
 outputs:
   deployment_status:
     description: 'Deployment status (success/failed)'
@@ -204,5 +201,4 @@ runs:
         ENV_FILES_CREATE_ROOT: ${{ inputs.env_files_create_root }}
         ENV_FILES_FORMAT: ${{ inputs.env_files_format }}
         COPY_ARTIFACTS: ${{ inputs.copy_artifacts }}
-        ENV_BLOB: ${{ inputs.env_blob }}
         GITHUB_WORKSPACE: ${{ github.workspace }}
