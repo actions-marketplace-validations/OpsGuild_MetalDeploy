@@ -166,7 +166,7 @@ runs:
       shell: bash
       run: |
         cd ${{ github.action_path }}
-        poetry install --only=main
+        poetry install --no-root --only=main
     - name: Run deployment
       shell: bash
       run: |

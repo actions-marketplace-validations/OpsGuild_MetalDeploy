@@ -1,3 +1,4 @@
+import json
 import os
 from unittest.mock import Mock, patch
 
@@ -7,6 +8,7 @@ from fabric import Connection
 from src.config import config
 from src.env_manager import (
     create_env_file,
+    detect_environment_secrets,
     detect_file_patterns,
     determine_file_structure,
     generate_env_files,
@@ -93,3 +95,30 @@ def test_heredoc_escaping(mock_conn):
                 # KEY=val$with$dollars -> S0VZPXZhbCR3aXRoJGRvbGxhcnM=
                 assert "S0VZPXZhbCR3aXRoJGRvbGxhcnM=" in cmd
         assert found_base64_tee
+
+
+def test_mixed_blob_and_raw_bucketing(mocker):
+    """Regression test for user's mixed secret setup (toJSON blob + raw block)."""
+    # Setup: ENV_BLOB has a JSON with an 'ENV' key containing raw vars
+    mock_json = json.dumps({"ENV": "A=1\nB=2", "ENV_APP": "C=3", "OTHER_UNRELATED": "ignored"})
+
+    # Isolate os.environ to avoid pollution from other tests
+    mocker.patch(
+        "os.environ", {"ENV_BLOB": mock_json, "ENV_FILES_GENERATE": "true", "ENVIRONMENT": "dev"}
+    )
+
+    # Patch the config object directly
+    from src.env_manager import config
+
+    mocker.patch.object(config, "ENVIRONMENT", "dev")
+    mocker.patch.object(config, "ENV_FILES_STRUCTURE", "single")
+    mocker.patch.object(config, "ENV_FILES_GENERATE", True)
+
+    result = detect_environment_secrets()
+
+    # Must correctly parse both from the raw block (A, B) and structured blob (APP_C)
+    assert ".env" in result
+    assert result[".env"]["A"] == "1"
+    assert result[".env"]["B"] == "2"
+    assert "APP_C" in result[".env"]
+    assert "OTHER_UNRELATED" not in result[".env"]
