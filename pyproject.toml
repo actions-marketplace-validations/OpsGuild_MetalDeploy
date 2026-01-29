@@ -45,10 +45,12 @@ markers = [
 [tool.black]
 line-length = 100
 target-version = ['py39', 'py310', 'py311', 'py312']
+extend-exclude = 'generated_envs|generated_envs_2|\.venv|venv'
 
 [tool.isort]
 profile = "black"
 line_length = 100
+skip = ["generated_envs", "generated_envs_2", ".venv", "venv"]
 
 [tool.coverage.run]
 source = ["src", "main.py"]

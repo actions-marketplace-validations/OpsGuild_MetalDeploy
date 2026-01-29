@@ -15,6 +15,8 @@ A comprehensive GitHub Action for deploying applications to baremetal servers vi
 - 📝 **Environment File Generation** - Automatically create `.env` files from GitHub secrets and variables
 - 🔒 **All-in-One Secret Support** - Store multiple variables in single secrets with multiple formats (ENV, JSON, YAML)
 - 🏗️ **Flexible File Structures** - Support single, flat, nested, auto, and custom file organization
+- 📦 **Artifact Copying** - Efficiently copy local build artifacts (dist/, node_modules) to the server with auto-compression
+- 🚀 **Multi-Server Deployment** - Deploy to multiple servers concurrently with smart variable distribution
 - 🎛️ **Priority System** - Environment-specific secrets override base secrets automatically
 - 🏗️ **Jenkins Compatible** - Fully compatible with Jenkins via pre-built GHCR image and Jenkinsfile
 
@@ -78,7 +80,42 @@ metaldeploy --host 1.2.3.4 --user root --ssh-key ~/.ssh/id_rsa --type docker
     environment: prod
     registry_type: dockerhub
     registry_username: ${{ secrets.DOCKERHUB_USERNAME }}
+    registry_username: ${{ secrets.DOCKERHUB_USERNAME }}
     registry_password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+### Copying Build Artifacts
+
+Copy specific files or directories (like `node_modules` or `dist/`) to the server. The action automatically compresses them for fast transfer.
+
+```yaml
+- name: Deploy with Artifacts
+  uses: OpsGuild/MetalDeploy@v1
+  with:
+    remote_host: ${{ secrets.REMOTE_HOST }}
+    ssh_key: ${{ secrets.SSH_PRIVATE_KEY }}
+    # Copy local 'dist' folder to remote '/app/dist'
+    # Copy local 'package.json' to remote '/app/package.json'
+    copy_artifacts: "dist/:/app/dist, package.json:/app/package.json"
+```
+
+### Multi-Server Deployment
+
+Deploy to multiple servers concurrently by providing comma-separated lists for host configuration. If variable lists are shorter than `remote_host`, values are reused/distributed smartly.
+
+- `remote_host`: `server1,server2,server3`
+- `remote_user`: `user1,user2` (user1->server1, user2->server2, user2->server3)
+- `ssh_key`: `key1` (key1 used for all servers)
+
+```yaml
+- name: Deploy to Cluster
+  uses: OpsGuild/MetalDeploy@v1
+  with:
+    remote_host: "10.0.1.1, 10.0.1.2, 10.0.1.3"
+    remote_user: "admin" # Used for all hosts
+    ssh_key: ${{ secrets.CLUSTER_SSH_KEY }}
+    deployment_type: docker
+    environment: prod
+```
 ```
 
 ### For Jenkins

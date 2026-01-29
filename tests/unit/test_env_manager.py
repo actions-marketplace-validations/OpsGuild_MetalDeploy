@@ -74,8 +74,8 @@ def test_root_mega_file_creation(mock_conn, monkeypatch):
             root_calls = [c for c in mock_create.call_args_list if c[0][1] == "/testing/.env"]
             assert len(root_calls) == 1
             merged_vars = root_calls[0][0][2]
-            assert "V1" in merged_vars
-            assert "V2" in merged_vars
+            assert "APP_V1" in merged_vars
+            assert "DB_V2" in merged_vars
 
 
 def test_heredoc_escaping(mock_conn):

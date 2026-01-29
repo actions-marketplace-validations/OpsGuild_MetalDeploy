@@ -89,3 +89,61 @@ def install_dependencies(conn):
         print("======= Dependencies installed =======")
     else:
         print("======= All dependencies already installed =======")
+
+
+def copy_artifacts(conn):
+    """
+    Copy build artifacts from local to remote using compression.
+    Format: local_path:remote_path
+    """
+    if not config.COPY_ARTIFACTS:
+        return
+
+    print(f"======= Copying {len(config.COPY_ARTIFACTS)} artifacts =======")
+    import tarfile
+
+    for local_path, remote_path in config.COPY_ARTIFACTS:
+        # Resolve remote path
+        if not remote_path.startswith("/"):
+            remote_path = os.path.join(config.GIT_DIR, remote_path)
+
+        # Check if local path exists
+        if not os.path.exists(local_path):
+            print(f"⚠️ Warning: Local artifact '{local_path}' not found, skipping.")
+            continue
+
+        print(f"📦 Processing: {local_path} -> {remote_path}")
+
+        # Create a temporary tarball
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp_tar:
+            tmp_tar_path = tmp_tar.name
+
+        try:
+            # Compress
+            with tarfile.open(tmp_tar_path, "w:gz") as tar:
+                arcname = os.path.basename(remote_path)
+                tar.add(local_path, arcname=arcname)
+
+            # Upload
+            remote_tmp = f"/tmp/{os.path.basename(tmp_tar_path)}"
+            conn.put(tmp_tar_path, remote_tmp)
+
+            # Ensure parent of destination exists
+            remote_parent = os.path.dirname(remote_path)
+            # Create parent if needed
+            run_command(conn, f"mkdir -p {remote_parent}")
+
+            # Remove existing target to be safe (overwrite)
+            run_command(conn, f"rm -rf {remote_path}")
+
+            run_command(conn, f"tar -xzf {remote_tmp} -C {remote_parent}")
+
+            # Cleanup remote tmp
+            run_command(conn, f"rm {remote_tmp}")
+
+        finally:
+            # Cleanup local tmp
+            if os.path.exists(tmp_tar_path):
+                os.unlink(tmp_tar_path)
+
+    print("======= Artifacts copied =======")
