@@ -32,7 +32,9 @@ def run_command(conn, command: str, force_sudo: bool = False, use_shell_profile:
 
     if not use_shell_profile:
         # Just sudo without the expensive profile loading
-        return conn.run(f"sudo {command}", warn=False)
+        # Wrap in bash -c to ensure sudo applies to the entire pipeline/batch
+        escaped_command = command.replace("'", "'\"'\"'")
+        return conn.run(f"sudo bash -c '{escaped_command}'", warn=False)
 
     if config.REMOTE_USER == "root":
         home_dir = "/root"
