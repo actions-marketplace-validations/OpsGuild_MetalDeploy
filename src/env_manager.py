@@ -101,7 +101,11 @@ def detect_file_patterns(
 
         # Determine if it's environment-specific
         matched_env = ""
-        for env in ["PROD", "STAGING", "DEV", "TEST", "PRODUCTION"]:
+        # Dynamic check for current environment + common fallbacks
+        env_candidates = list(set([env_upper, "PROD", "STAGING", "DEV", "TEST", "PRODUCTION"]))
+        for env in env_candidates:
+            if not env:
+                continue
             if var_name.startswith(f"ENV_{env}_"):
                 matched_env = env
                 break
@@ -204,10 +208,8 @@ def merge_env_vars_by_priority(
                     continue
 
                 # Skip environment-specific ones
-                if any(
-                    k.startswith(f"ENV_{e}_")
-                    for e in ["PROD", "STAGING", "DEV", "TEST", "PRODUCTION"]
-                ):
+                env_candidates = [env_upper, "PROD", "STAGING", "DEV", "TEST", "PRODUCTION"]
+                if any(k.startswith(f"ENV_{e}_") for e in env_candidates if e):
                     continue
 
                 key = k[4:]  # e.g. APP or APP_PORT
@@ -296,7 +298,7 @@ def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
     all_env_vars = {
         k: v
         for k, v in os.environ.items()
-        if k.startswith("ENV_") and not k.startswith("ENV_FILES_")
+        if (k.startswith("ENV_") or k == "ENV") and not k.startswith("ENV_FILES_")
     }
     if not all_env_vars:
         return {}
@@ -310,10 +312,20 @@ def detect_environment_secrets() -> Dict[str, Dict[str, str]]:
             patterns = [p.strip() for p in config.ENV_FILES_PATTERNS if p.strip()]
 
     result = {}
+    if "ENV" in all_env_vars:
+        # Treat ENV as a global blob that goes into .env (or first pattern) without prefixing
+        parsed = parse_all_in_one_secret(all_env_vars["ENV"], config.ENV_FILES_FORMAT)
+        if parsed:
+            target_file = patterns[0] if patterns else ".env"
+            result[target_file] = parsed.copy()
+
     for pattern in patterns:
         merged_vars = merge_env_vars_by_priority(all_env_vars, config.ENVIRONMENT, pattern)
         if merged_vars:
-            result[pattern] = merged_vars
+            if pattern in result:
+                result[pattern].update(merged_vars)
+            else:
+                result[pattern] = merged_vars
     return result
 
 
@@ -339,7 +351,7 @@ def generate_env_files(conn) -> None:
         all_env_vars = {
             k: v
             for k, v in os.environ.items()
-            if k.startswith("ENV_") and not k.startswith("ENV_FILES_")
+            if (k.startswith("ENV_") or k == "ENV") and not k.startswith("ENV_FILES_")
         }
         env_file_data = detect_environment_secrets()
         if not env_file_data:
