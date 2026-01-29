@@ -53,7 +53,8 @@ def test_run_command_no_profile(mock_conn, monkeypatch):
     run_command(mock_conn, "simple-cmd", use_shell_profile=False)
 
     call_args = mock_conn.run.call_args[0][0]
-    assert call_args == "sudo simple-cmd"
+    assert "sudo bash -c" in call_args
+    assert "'simple-cmd'" in call_args
     assert "bash -l -c" not in call_args
 
 
