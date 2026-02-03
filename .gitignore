@@ -30,9 +30,15 @@ ENV/
 htmlcov/
 .coverage
 .coverage.*
+coverage.xml
 .pytest_cache/
 .tox/
 .hypothesis/
+generated_envs/
+generated_envs_2/
+**/generated_envs/
+**/generated_envs_2/
+**/generated_envs_*/
 
 # IDEs
 .vscode/
@@ -46,7 +52,7 @@ htmlcov/
 Thumbs.db
 
 # Poetry
-poetry.lock
+# poetry.lock is committed to ensure reproducible builds in Docker
 
 # Temporary files
 *.tmp

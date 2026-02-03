@@ -1,98 +1,50 @@
-# Testing Guide
+# MetalDeploy Test Suite
 
-This directory contains tests for the MetalDeploy Action.
+This directory is organized into unit and integration tests.
+
+## Structure
+
+- `tests/unit/`: Fast unit tests that mock external dependencies (SSH, Git, etc.).
+- `tests/integration/`: Docker-based integration tests that simulate a real SSH deployment environment.
 
 ## Running Tests
 
-### Quick Start (Using Make)
-
+### All Tests
 ```bash
-# Install test dependencies
-make install-dev
-
-# Run all tests
 make test
+# OR
+pytest tests/ -v -s
+```
 
-# Run only fast unit tests
+### Unit Tests
+```bash
 make test-unit
-
-# Run with coverage report
-make test-coverage
+# OR
+pytest tests/unit/ -v
 ```
 
-### Manual Setup
-
-#### Install Test Dependencies
-
+### Integration Tests
 ```bash
-# Install Poetry (if not already installed)
-curl -sSL https://install.python-poetry.org | python3 -
-
-# Install dependencies
-poetry install
+pytest tests/integration/ -v -s
 ```
 
-#### Run All Tests
+### Why `-s` is Required
 
-```bash
-poetry run pytest
-```
+Pytest's default output capture mechanism interferes with the SSH connections used by Fabric/Paramiko. The `-s` flag (`--capture=no`) disables this capture, allowing the SSH connections to work properly.
 
-### Run Only Unit Tests (Fast)
+## Test Suite
 
-```bash
-poetry run pytest -m "not integration and not slow"
-```
+The integration tests include:
+1. **SSH Connection Test**: Verifies basic SSH connectivity
+2. **Git Tools Test**: Confirms Git is installed on the remote
+3. **Environment File Generation Test**: Tests remote `.env` file creation
+4. **Deploy Simulation Test**: Validates deployment command execution
 
-### Run with Coverage
+## Docker Environment
 
-```bash
-poetry run pytest --cov=deploy --cov-report=html
-```
+- **Container**: Ubuntu 22.04 with SSH, Git, Python3
+- **Port**: 2222 (mapped to container's port 22)
+- **Credentials**: root/root
+- **Lifecycle**: Automatically managed by pytest fixtures
 
-Then open `htmlcov/index.html` in your browser to see coverage report.
-
-### Run Specific Test File
-
-```bash
-poetry run pytest tests/test_deploy.py
-```
-
-### Run Specific Test
-
-```bash
-poetry run pytest tests/test_deploy.py::TestRunCommand::test_run_command_with_sudo
-```
-
-## Test Structure
-
-- **test_deploy.py** - Unit tests for core functionality (mocked)
-- **test_integration.py** - Integration tests (require real infrastructure, skipped by default)
-
-## Writing New Tests
-
-1. Create test functions starting with `test_`
-2. Use `@pytest.mark.unit` for fast unit tests
-3. Use `@pytest.mark.integration` for integration tests
-4. Use `@pytest.mark.slow` for tests that take a long time
-5. Mock external dependencies (SSH connections, file system, etc.)
-
-## Example Test
-
-```python
-def test_my_function(mock_connection):
-    from deploy import my_function
-
-    with patch('deploy.SOME_VAR', 'value'):
-        result = my_function(mock_connection)
-        assert result is not None
-```
-
-## CI/CD
-
-Tests run automatically on:
-- Push to main/develop branches
-- Pull requests
-- Manual trigger via workflow_dispatch
-
-See `.github/workflows/test.yml` for CI configuration.
+The Docker container is automatically started before tests and stopped after completion.
